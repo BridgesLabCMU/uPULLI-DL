@@ -78,6 +78,12 @@ def buildParser():
                         'to excluded_short_wells.csv); wells with more are '
                         'truncated. Pin this explicitly to be robust to whichever '
                         'stack happens to be first.')
+    p.add_argument('--mag', dest='mag', default=None,
+                   help='Only embed wells of this magnification suffix (e.g. _04). '
+                        'Required when a tree holds MULTIPLE mags (e.g. _03=4x + '
+                        '_04=10x): embeddings of different objectives live in '
+                        'different physical scales and must not share one cache. '
+                        'Combine with --cache-dir to write a per-mag cache.')
     return p
 
 
@@ -120,6 +126,17 @@ def main(argv=None):
               'Is this a biofilm-processing output tree? (each plate needs '
               'processedImages/index.csv with a `processed` column)', file=sys.stderr)
         return 2
+
+    # --mag: restrict to one magnification (mixing objectives in one cache is
+    # invalid). Filter before anything else so the report/nFrames reflect it.
+    if args.mag:
+        before = len(rows)
+        rows = [r for r in rows if r.get('mag', '') == args.mag]
+        log(f'  --mag {args.mag}: {len(rows)} of {before} wells kept')
+        if not rows:
+            print(f'ERROR: no wells with mag {args.mag!r} (check the index `mag` '
+                  f'column, e.g. _03 / _04).', file=sys.stderr)
+            return 2
 
     # nFrames: explicit --n-frames, else inferred from the first stack. Inferring
     # is fragile (the first stack might be a short one), so --n-frames pins it.
