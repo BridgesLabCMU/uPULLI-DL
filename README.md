@@ -283,7 +283,18 @@ Useful options:
 | `--limit 8` | Embed only the first N wells, as a smoke test. |
 | `--well-batch 24` | More wells per GPU batch. Raise it on a big GPU, lower it if you run out of memory. |
 
-`scripts/` holds one script per dataset we've run (training, reimaging, cluster, multispecies, *Klebsiella*). Each records that dataset's exact settings and doubles as a template — copy the closest one when adding a new dataset.
+### Per-dataset scripts
+
+`scripts/examples/` holds two templates. Copy the one that matches your data and fill in the header block:
+
+| Template | Use when |
+|---|---|
+| `extract_dataset_template.sh` | One magnification — the common case. Writes a single cache at `<root>/embeddings/`. |
+| `extract_multi_mag_template.sh` | The plates were imaged at two or more objectives. Runs one pass per magnification into separate caches, because mixing scales in one cache is invalid. |
+
+Both take the data root as their first argument, pin the frame count in the script, detach with `nohup`, and pass any extra flags through to `biofilm-embeddings-run`.
+
+Keeping one script per dataset is the point: the script *is* the reproducible record. It pins the frame count and any non-default model settings, so re-running it a year later reproduces the same cache rather than whatever the defaults have drifted to. Record the dataset's shape — organism, plate and well counts, magnification, frame count — in the header block while you still remember it.
 
 ---
 

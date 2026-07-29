@@ -13,3 +13,13 @@ results/
 experiment_config.json
 *.md
 !README.md
+
+# Per-dataset run scripts are local-only: they hardcode this lab's NAS mount
+# points, usernames, and collaborator names, none of which belong in a public
+# repo (and none of which are useful to anyone else). Sanitized, parameterised
+# equivalents live in scripts/examples/ and ARE tracked — this pattern is
+# anchored to scripts/ so it does not match scripts/examples/.
+scripts/extract_*.sh
+
+# Run logs (the example scripts write a timestamped log to the working dir).
+*.log
