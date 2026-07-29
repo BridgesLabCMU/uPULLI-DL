@@ -88,18 +88,33 @@ def buildParser():
 
 
 def _frameCount(path):
-    """Frame count of a processed stack via TIFF page headers — no pixel read.
+    """Frame count of a processed stack from TIFF headers — no pixel read.
 
-    Verified to equal the dataset's true frame count (saveStack writes one page
-    per frame), at ~10x lower cost than a full load, so it's cheap enough to
-    pre-scan every well before extraction.
+    Uses the *series* shape, not `len(tf.pages)`. `saveStack` writes the stack
+    with a bare `tifffile.imwrite(path, (T,H,W) array)`, and current tifffile
+    stores that as a SINGLE page whose series shape is (T, H, W) — so
+    `len(tf.pages)` returns 1 no matter how many frames there are, and every
+    well would be reported as too short and skipped. (Older tifffile wrote one
+    page per frame, which is why the page count ever appeared to work.)
+    The series shape is correct for both layouts.
+
+    Applies the same smallest-axis-is-T heuristic as `dataset._toHWT`, so this
+    count agrees with the frame count the dataset will actually see.
     """
     import tifffile
     try:
         with tifffile.TiffFile(path) as tf:
-            return len(tf.pages)
+            shape = tf.series[0].shape
     except Exception:
         return None
+    if len(shape) == 2:
+        return 1
+    if len(shape) != 3:
+        return None
+    h, w, t = shape
+    if h < w and h < t:   # (T, H, W) — smallest axis at front
+        return h
+    return t              # already (H, W, T)
 
 
 def main(argv=None):
