@@ -45,6 +45,9 @@ analysis = [
     "scikit-fda",
     "pyarrow",
 ]
+dev = [
+    "pytest",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
