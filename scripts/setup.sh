@@ -4,7 +4,7 @@
 # The image-processing engine (biofilm-processing) is NOT on PyPI — it is
 # vendored as a pinned git submodule at external/biofilm-processing. It must be
 # (1) fetched and (2) pip-installed editable BEFORE this package, otherwise
-# `pip install -e .` cannot satisfy `biofilm-processing==0.5.0`. This script
+# `pip install -e .` cannot satisfy `biofilm-processing==1.0.0`. This script
 # does both in the right order. Safe to re-run.
 set -euo pipefail
 cd "$(dirname "$0")/.."
