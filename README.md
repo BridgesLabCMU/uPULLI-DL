@@ -1,5 +1,7 @@
 # biofilm-embeddings
 
+[![CI](https://github.com/melsehna/biofilm-embeddings/actions/workflows/ci.yml/badge.svg)](https://github.com/melsehna/biofilm-embeddings/actions/workflows/ci.yml)
+
 **Deep-learning embeddings for biofilm timelapse microscopy of 96-well plates.**
 
 biofilm-embeddings turns per-well image stacks from a Cytation5 microscope into **DINOv2 vision-transformer embeddings** — a numerical fingerprint of what each well looks like at every timepoint. Instead of hand-picking features like "biomass" or "texture," a frozen pretrained model describes each frame with 768 numbers, giving you a trajectory through embedding space for every well. Those trajectories feed downstream analysis: fPCA, UMAP, clustering, path signatures.

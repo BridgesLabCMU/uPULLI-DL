@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # Job A — a clean install from scratch, across the Python versions the pins allow.
+  #
+  # This is the job that matters for this repo. Its failure modes are exactly the
+  # ones that have bitten us and gone unnoticed locally, because a developer
+  # machine already has a populated submodule and an installed engine:
+  #   - a submodule URL that cannot be fetched
+  #   - a submodule pointer that was never staged, so the engine version installed
+  #     does not match the `==` pin in pyproject.toml
+  #   - import-level breakage in the package or the headless CLI
+  #
+  # Note on torch: CPU-only wheels are installed deliberately, BEFORE the package.
+  # The runners have no GPU, so CUDA wheels would add ~3 GB of download for zero
+  # benefit. Installing torch first means `pip install -e .` sees `torch>=2.7`
+  # already satisfied and will not pull the CUDA build.
+  install:
+    name: install (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.13 is excluded: the pinned engine caps numpy<2.1, whose last release
+        # supports 3.12. Bump this when the engine's numeric pins are refreshed.
+        python: ['3.10', '3.11', '3.12']
+    steps:
+      # submodules: recursive pulls external/biofilm-processing at the pinned tag.
+      # While that repo is private this needs credentials — add a deploy key or a
+      # PAT with read access as `ssh-key:` / `token:` here. Once it is public,
+      # this works as written with no secret.
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # System libraries no Python lockfile can capture. Needed here even for the
+      # headless path: biofilm-embeddings-run imports gui/tabs/run.py, which
+      # imports Qt at module level, so libGL/libEGL/xkb must be present.
+      - name: Install system libraries (opencv, Qt, ffmpeg)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl1 libglib2.0-0 libegl1 libxkbcommon0 libdbus-1-3 ffmpeg
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install CPU-only torch (no GPU on runners)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      # Order matters and is the point of the test: the engine is not on PyPI, so
+      # it must be installed from the submodule before this package can satisfy
+      # its `biofilm-processing==` pin.
+      - name: Install the pinned processing engine
+        run: pip install -e external/biofilm-processing
+
+      - name: Install biofilm-embeddings
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest -v
+
+      # Proves the console scripts are wired up and importable, which `pytest`
+      # alone does not cover (the CLI reaches into the GUI package for its row
+      # collection helpers).
+      - name: Smoke-test the headless CLI
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: biofilm-embeddings-run --help
+
+  # Job B — lint, informational only. Does not gate the build.
+  lint:
+    name: lint (ruff, non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install ruff
+      - run: ruff check .

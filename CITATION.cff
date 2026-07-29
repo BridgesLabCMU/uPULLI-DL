@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "biofilm-embeddings: DINOv2 vision-transformer embeddings for brightfield biofilm timelapse microscopy"
+abstract: >-
+  Turns per-well brightfield timelapse image stacks from 96-well plate
+  microscopy into frozen DINOv2 vision-transformer embeddings. Each frame is
+  described by a CLS token and a pooled 3x3 grid of patch tokens, giving every
+  well a trajectory through embedding space for downstream analysis (fPCA, UMAP,
+  clustering, path signatures). Image processing is provided by biofilm-processing,
+  vendored at a pinned version so the render cannot drift under the embeddings.
+  Ships a PySide6 GUI and a headless CLI.
+type: software
+version: 0.1.0
+date-released: 2026-07-29
+repository-code: "https://github.com/melsehna/biofilm-embeddings"
+authors:
+  - family-names: Mellick
+    given-names: "Seh Na S."
+    email: sehna@cmu.edu
+    affiliation: "Carnegie Mellon University"
+    orcid: "https://orcid.org/0000-0002-3840-4567"
+  - family-names: Bridges
+    given-names: "Andrew A."
+    email: bridges@cmu.edu
+    affiliation: "Carnegie Mellon University"
+keywords:
+  - biofilm
+  - microscopy
+  - image-analysis
+  - phenotyping
+  - representation-learning
+  - vision-transformer
+  - DINOv2
