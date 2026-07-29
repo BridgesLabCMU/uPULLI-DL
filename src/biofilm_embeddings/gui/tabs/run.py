@@ -36,7 +36,7 @@ from ...embeddings.extractor import resolveProcessedPath
 from ..buildinfo import buildRecord
 
 
-# CIFS/SMB mounts (e.g. /mnt/share) reject chown/chgrp/chmod AND utime.
+# CIFS/SMB mounts commonly reject chown/chgrp/chmod AND utime.
 # `rsync -a` stages each file via a temp file carrying the source mode; the
 # mount rejects even that mkstemp ("Operation not permitted") so EVERY file
 # fails before any bytes are written (rc=23, 0 bytes transferred). Strip all
@@ -798,7 +798,11 @@ class ProcessingWorker(QObject):
         dstArg = nasPlateDir.rstrip('/') + '/'
         try:
             result = subprocess.run(
-                [*_NAS_RSYNC, '--info=progress2', srcArg, dstArg],
+                # `--` terminates option parsing: without it a directory whose
+                # name begins with '-' would be read as an rsync flag (e.g.
+                # --rsh=, which executes a command). Paths are absolute today so
+                # this is belt-and-braces, but the guarantee is incidental.
+                [*_NAS_RSYNC, '--info=progress2', '--', srcArg, dstArg],
                 capture_output=True, text=True, timeout=3600,
             )
             if result.returncode != 0:
@@ -836,7 +840,7 @@ class ProcessingWorker(QObject):
             self.log.emit(f'    [delete] shutil.rmtree failed ({e}) — falling back to rm -rf')
         if os.path.exists(path):
             try:
-                subprocess.run(['rm', '-rf', path], check=True, timeout=600)
+                subprocess.run(['rm', '-rf', '--', path], check=True, timeout=600)
             except Exception as e:
                 self.log.emit(f'    [delete] rm -rf failed: {e}')
         return not os.path.exists(path)

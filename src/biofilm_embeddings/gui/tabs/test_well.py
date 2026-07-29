@@ -403,8 +403,8 @@ class TestWellTab(QWidget):
                         self._runFinished.emit(None)
                         return
 
-                    import torch
-                    cache = torch.load(cachePath, weights_only=False)
+                    from ...embeddings.extractor import loadCache
+                    cache = loadCache(cachePath)
 
                 self._runProgress.emit('Done', 4, 4)
                 cls = cache['cls'][0].numpy()  # (T, D)

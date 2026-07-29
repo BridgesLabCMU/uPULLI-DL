@@ -226,18 +226,22 @@ Phase 2 writes one cache for the whole run:
 To load the embeddings in Python:
 
 ```python
-import torch
-cache = torch.load('embeddings/cls_cache.pt', weights_only=False)
+from biofilm_embeddings.embeddings.extractor import loadCache, indexToFrame
+
+cache = loadCache('embeddings/cls_cache.pt')
 
 cache['cls']        # (wells, frames, 768) — whole-image embedding per frame
 cache['patches']    # (wells, frames, 9, 768) — 3x3 spatial grid per frame
 cache['wells']      # well IDs, e.g. 'A1_03'
 cache['plates']     # plate for each well
-cache['index']      # table with magnification, objective, file paths
 cache['model']      # which model made this
+
+index = indexToFrame(cache['index'])   # DataFrame: magnification, objective, paths
 ```
 
 Row *i* of `cls` corresponds to `wells[i]` and `plates[i]`.
+
+> **On loading caches safely.** A `.pt` file is executable content, not inert data — `torch.load`'s default pickle protocol runs code on unpickling. Since caches get read from shared network storage and passed between groups, `loadCache` loads them with `weights_only=True`, which permits only tensors and primitives. That is also why `cache['index']` is stored as plain columns rather than a pickled DataFrame; `indexToFrame` rebuilds it. Caches written before this change fail with an explanatory error — re-extract them, or pass `allowUnsafe=True` if you trust every machine that could have written the file.
 
 ---
 

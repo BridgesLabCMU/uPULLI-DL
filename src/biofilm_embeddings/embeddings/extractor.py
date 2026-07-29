@@ -24,9 +24,56 @@ from .dataset import ProcessedTifDataset
 
 _FINGERPRINT_FILE = 'rowFingerprint.txt'
 
+# Marker written into caches whose `index` is stored as plain columns rather
+# than a pickled DataFrame. Its presence means the cache is loadable with
+# torch.load(weights_only=True).
+_INDEX_FORMAT = 'columns'
+
+
+def loadCache(path, *, allowUnsafe=False):
+    """Load a cache/checkpoint without executing pickled code.
+
+    `torch.load` defaults to the pickle protocol, which runs `__reduce__` on
+    unpickling — a .pt file is executable content, not inert data. These caches
+    are read from shared network storage that several machines write to, and
+    (once published) will be downloaded and passed around by other groups, which
+    is exactly the threat model that pushed the ML ecosystem to safetensors.
+    `weights_only=True` restricts unpickling to tensors and primitives and closes
+    that path.
+
+    Caches written before `_INDEX_FORMAT` embedded a pandas DataFrame under
+    'index', which the restricted unpickler cannot reconstruct. Those fail here
+    with an actionable message rather than being silently loaded unsafely; pass
+    allowUnsafe=True only for a file whose every writer you trust.
+    """
+    if not allowUnsafe:
+        try:
+            return torch.load(path, map_location='cpu', weights_only=True)
+        except Exception as e:
+            raise RuntimeError(
+                f'{path} could not be loaded safely ({type(e).__name__}: {e}). '
+                f'Caches written before the "{_INDEX_FORMAT}" index format pickled '
+                f'a pandas DataFrame and cannot be restored under weights_only=True. '
+                f'Re-extract to get a safe cache, or call loadCache(..., '
+                f'allowUnsafe=True) ONLY if you trust every machine that can write '
+                f'to this path.'
+            ) from e
+    return torch.load(path, map_location='cpu', weights_only=False)
+
+
+def indexToFrame(index):
+    """Rebuild a DataFrame from a cache's `index`, old format or new.
+
+    New caches store a dict of column -> list of str; older ones stored the
+    DataFrame itself. Accepts either so downstream code has one call site.
+    """
+    if isinstance(index, pd.DataFrame):
+        return index
+    return pd.DataFrame(index)
+
 
 def resolveProcessedPath(indexDir, stored):
-    """Resolve a `processed` path from index.csv to a file that exists.
+    """Resolve a `processed` path from index.csv, CONFINED to the index dir.
 
     index.csv stores the ABSOLUTE path from processing time, which points at
     the processing machine's staging dir. Under biofilm-processing's lean NAS
@@ -36,14 +83,22 @@ def resolveProcessedPath(indexDir, stored):
     index.csv's own directory, which is wherever the tree is actually mounted on
     the reading machine. Mirrors biofilm-processing's `master_csv._resolveArtifact`.
 
-    Returns the stored path if it exists (same-machine / in-place run), else the
-    basename re-resolved against `indexDir`, else '' if neither exists.
+    Security: index.csv is DATA, not a trusted path source. It is routinely read
+    from shared network storage that several machines write to, and from datasets
+    obtained from third parties. Honouring an absolute path out of that column
+    would let a crafted index.csv make the extractor open any file the user can
+    read. So the stored value is always reduced to its basename and resolved
+    inside `indexDir`; anything escaping that directory resolves to ''.
+
+    This is behaviour-preserving for real trees: `_processed.tif` always lives
+    beside the index.csv that references it, in the same processedImages/ dir.
     """
     if not stored:
         return ''
-    if os.path.exists(stored):
-        return stored
-    cand = os.path.join(indexDir, os.path.basename(stored))
+    indexDir = os.path.realpath(indexDir)
+    cand = os.path.realpath(os.path.join(indexDir, os.path.basename(stored)))
+    if os.path.commonpath([cand, indexDir]) != indexDir:
+        return ''
     return cand if os.path.exists(cand) else ''
 
 
@@ -206,7 +261,7 @@ def _consolidate(batchDir, totalBatches, extractCls, extractPatches):
     """Merge per-batch .pt files into one cache dict."""
     allCls, allPatches, allWells, allPlates = [], [], [], []
     for b in range(totalBatches):
-        ckpt = torch.load(batchDir / f'batch_{b:04d}.pt', weights_only=False)
+        ckpt = loadCache(batchDir / f'batch_{b:04d}.pt')
         if extractCls and 'cls' in ckpt:
             allCls.append(ckpt['cls'])
         if extractPatches and 'patches' in ckpt:
@@ -249,7 +304,7 @@ def aggregatePerPlateCaches(
     modelName = None
     for path in perPlateCachePaths:
         progressFn(f'  loading {path}')
-        ck = torch.load(path, map_location='cpu', weights_only=False)
+        ck = loadCache(path)
         if 'cls' in ck:
             allCls.append(ck['cls'])
         if 'patches' in ck:
@@ -257,7 +312,7 @@ def aggregatePerPlateCaches(
         allWells.extend(ck.get('wells', []))
         allPlates.extend(ck.get('plates', []))
         if 'index' in ck:
-            indexDfs.append(ck['index'])
+            indexDfs.append(indexToFrame(ck['index']))
         gridSize = ck.get('gridSize', gridSize)
         modelName = ck.get('model', modelName)
 
@@ -272,7 +327,9 @@ def aggregatePerPlateCaches(
     if allPatches:
         master['patches'] = torch.cat(allPatches)
     if indexDfs:
-        master['index'] = pd.concat(indexDfs, ignore_index=True)
+        merged = pd.concat(indexDfs, ignore_index=True)
+        master['index'] = {c: merged[c].astype(str).tolist() for c in merged.columns}
+        master['indexFormat'] = _INDEX_FORMAT
 
     os.makedirs(os.path.dirname(outCachePath), exist_ok=True)
     torch.save(master, outCachePath)
@@ -386,9 +443,15 @@ def extractAll(
 
     progressFn('consolidating batch files…')
     cache = _consolidate(batchDir, totalBatches, extractCls, extractPatches)
-    cache['index']    = indexDf
-    cache['gridSize'] = gridSize
-    cache['model']    = modelName
+    # Store the row index as plain columns, NOT a pickled DataFrame, so the
+    # cache stays loadable with weights_only=True (see loadCache). Explicit
+    # astype(str) keeps the dtype fidelity a CSV round-trip would lose — empty
+    # strings becoming NaN, ints becoming floats — which downstream filters on
+    # `mag` depend on. Rebuild with indexToFrame().
+    cache['index']       = {c: indexDf[c].astype(str).tolist() for c in indexDf.columns}
+    cache['indexFormat'] = _INDEX_FORMAT
+    cache['gridSize']    = gridSize
+    cache['model']       = modelName
     torch.save(cache, cachePath)
 
     shutil.rmtree(batchDir)
