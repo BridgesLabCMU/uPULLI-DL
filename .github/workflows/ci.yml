@@ -31,9 +31,8 @@ jobs:
         python: ['3.10', '3.11', '3.12']
     steps:
       # submodules: recursive pulls external/biofilm-processing at the pinned tag.
-      # While that repo is private this needs credentials — add a deploy key or a
-      # PAT with read access as `ssh-key:` / `token:` here. Once it is public,
-      # this works as written with no secret.
+      # The engine is public (BridgesLabCMU/uPULLI-I) and .gitmodules uses its
+      # HTTPS URL, so this needs no deploy key, PAT, or other secret.
       - uses: actions/checkout@v4
         with:
           submodules: recursive
