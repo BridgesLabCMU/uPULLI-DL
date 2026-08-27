@@ -12,7 +12,7 @@ abstract: >-
 type: software
 version: 0.1.0
 date-released: 2026-07-29
-repository-code: "https://github.com/melsehna/biofilm-embeddings"
+repository-code: "https://github.com/BridgesLabCMU/uPULLI-DL"
 authors:
   - family-names: Mellick
     given-names: "Seh Na S."

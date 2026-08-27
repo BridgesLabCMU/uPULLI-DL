@@ -1,6 +1,6 @@
 # biofilm-embeddings
 
-[![CI](https://github.com/melsehna/biofilm-embeddings/actions/workflows/ci.yml/badge.svg)](https://github.com/melsehna/biofilm-embeddings/actions/workflows/ci.yml)
+[![CI](https://github.com/BridgesLabCMU/uPULLI-DL/actions/workflows/ci.yml/badge.svg)](https://github.com/BridgesLabCMU/uPULLI-DL/actions/workflows/ci.yml)
 
 **Deep-learning embeddings for biofilm timelapse microscopy of 96-well plates.**
 
@@ -8,7 +8,7 @@ biofilm-embeddings turns per-well image stacks from a Cytation5 microscope into 
 
 It runs as a desktop GUI, or headlessly from the command line for big batches on a GPU machine.
 
-> **New here? Skip straight to [Quick start](#quick-start).** Installation takes ~15 minutes. You'll need a GitHub SSH key (step 2) and, realistically, a GPU.
+> **New here? Skip straight to [Quick start](#quick-start).** Installation takes ~15 minutes. You'll need `git`, Miniconda, and realistically a GPU — no GitHub account or credentials required.
 
 ---
 
@@ -17,11 +17,10 @@ It runs as a desktop GUI, or headlessly from the command line for big batches on
 - [How it works](#how-it-works)
 - [Quick start](#quick-start)
   - [1. Install Miniconda (one-time)](#1-install-miniconda-one-time)
-  - [2. Set up a GitHub SSH key (one-time)](#2-set-up-a-github-ssh-key-one-time)
-  - [3. Download biofilm-embeddings](#3-download-biofilm-embeddings)
-  - [4. Install it](#4-install-it)
-  - [5. Check your GPU](#5-check-your-gpu)
-  - [6. Make a desktop shortcut](#6-make-a-desktop-shortcut-optional)
+  - [2. Download biofilm-embeddings](#2-download-biofilm-embeddings)
+  - [3. Install it](#3-install-it)
+  - [4. Check your GPU](#4-check-your-gpu)
+  - [5. Make a desktop shortcut](#5-make-a-desktop-shortcut-optional)
 - [Using the GUI](#using-the-gui)
 - [What gets produced](#what-gets-produced)
 - [Keeping embeddings comparable](#keeping-embeddings-comparable)
@@ -43,7 +42,7 @@ There are two phases, and they're deliberately separate buttons.
 
 They're separate so you can re-extract with a different model or image size **without reprocessing your images**. Phase 1 output is the durable artifact; phase 2 is cheap to redo.
 
-If your images have *already* been processed by [biofilm-processing](https://github.com/melsehna/biofilm-processing), you can skip phase 1 entirely and just run phase 2 over the existing output — see [Running without the GUI](#running-without-the-gui).
+If your images have *already* been processed by [biofilm-processing](https://github.com/BridgesLabCMU/uPULLI-I), you can skip phase 1 entirely and just run phase 2 over the existing output — see [Running without the GUI](#running-without-the-gui).
 
 > **A note on the processing engine.** biofilm-embeddings does not contain its own copy of the image-processing code. It uses biofilm-processing itself, frozen at a specific version (v1.0.0, the paper-locked release), included automatically as part of the download. This matters scientifically: a vision transformer is *very* sensitive to how images are rendered, so if the processing changed underneath you, embeddings from different batches would stop being comparable in ways that look like biology but aren't.
 
@@ -59,41 +58,22 @@ Miniconda gives you an isolated Python environment so this package's dependencie
 - Accept all defaults.
 - After install, open the **"Anaconda Prompt"** (Windows) or your normal **Terminal** (macOS / Linux). All commands below get typed there.
 
-### 2. Set up a GitHub SSH key (one-time)
+### 2. Download biofilm-embeddings
 
-The processing engine lives in a **private** repository, so an anonymous download can't reach it. You need an SSH key linked to a GitHub account that has access.
-
-Check whether you already have one working:
+**This step needs Git — a "Download ZIP" will not work.** The processing engine is not copied into this repository; it is referenced as a Git submodule, and a ZIP leaves that reference empty, so the install fails partway through with `external/biofilm-processing does not appear to be a Python project`. Cloning with `--recurse-submodules` fetches both parts together:
 
 ```bash
-ssh -T git@github.com
+git clone --recurse-submodules https://github.com/BridgesLabCMU/uPULLI-DL.git
+cd uPULLI-DL
 ```
 
-If it says `Hi <yourname>! You've successfully authenticated`, you're done — go to step 3.
+No GitHub account, SSH key, or login is needed.
 
-If not, create a key and add it to your GitHub account:
+Don't have Git? Install it from <https://git-scm.com/downloads> (Windows/macOS), or `sudo apt install git` on Ubuntu/Debian.
 
-```bash
-ssh-keygen -t ed25519 -C "your_email@example.com"    # press Enter at every prompt
-cat ~/.ssh/id_ed25519.pub                            # copy the whole line this prints
-```
+> Already cloned without `--recurse-submodules`? Run `git submodule update --init --recursive` from inside the folder.
 
-Then go to <https://github.com/settings/keys> → **New SSH key** → paste → **Add SSH key**. Run `ssh -T git@github.com` again to confirm.
-
-> If you don't have access to the private repo, ask Seh Na — access has to be granted before the install can work.
-
-### 3. Download biofilm-embeddings
-
-```bash
-git clone --recurse-submodules git@github.com:melsehna/biofilm-embeddings.git
-cd biofilm-embeddings
-```
-
-> **Don't use GitHub's "Download ZIP" button here.** A ZIP does not include the processing engine, and the install will fail partway through. You need `git clone` with `--recurse-submodules`, as above.
->
-> Already cloned without `--recurse-submodules`? Just run `git submodule update --init --recursive` from inside the folder.
-
-### 4. Install it
+### 3. Install it
 
 ```bash
 conda create -n biofilm-embeddings python=3.11 -y
@@ -103,7 +83,7 @@ bash scripts/setup.sh
 
 What these do:
 - `conda create …` — makes a new Python environment named `biofilm-embeddings`.
-- `conda activate biofilm-embeddings` — switches into it. **You'll need to do this every time you open a fresh terminal**, unless you use the desktop shortcut (step 6).
+- `conda activate biofilm-embeddings` — switches into it. **You'll need to do this every time you open a fresh terminal**, unless you use the desktop shortcut (step 5).
 - `bash scripts/setup.sh` — fetches the processing engine and installs everything in the right order. This downloads PyTorch and several GB of CUDA libraries, so expect it to take a while.
 
 The order matters, which is the whole reason `setup.sh` exists: the processing engine isn't on PyPI, so it has to be installed *before* this package. If you install by hand and get a "No matching distribution found" error, that's why.
@@ -114,7 +94,7 @@ Once it finishes, launch the app:
 biofilm-embeddings-gui
 ```
 
-### 5. Check your GPU
+### 4. Check your GPU
 
 Phase 2 runs a vision transformer over every frame of every well. On a GPU that's minutes to hours; on a CPU it's hours to days. It's worth confirming your GPU actually works **before** starting a real run:
 
@@ -134,7 +114,7 @@ pip install "torch==2.13.0+cu126" \
 
 Then re-run the check above. See [Troubleshooting](#troubleshooting) for the details and for other card generations.
 
-### 6. Make a desktop shortcut (optional)
+### 5. Make a desktop shortcut (optional)
 
 If you'd rather not open a terminal each time:
 
@@ -306,13 +286,14 @@ Keeping one script per dataset is the point: the script *is* the reproducible re
 
 ```bash
 conda activate biofilm-embeddings
-cd /path/to/biofilm-embeddings
+cd /path/to/uPULLI-DL
 git pull
-git submodule update --init --recursive   # keeps the processing engine in sync
+git submodule sync --recursive            # picks up any change to the engine's location
+git submodule update --init --recursive   # moves the engine to the pinned version
 bash scripts/setup.sh                     # picks up any new dependencies
 ```
 
-The submodule step matters: the processing engine is pinned to an exact version, and `git pull` alone won't move it.
+The submodule steps matter: the processing engine is pinned to an exact version, and `git pull` alone won't move it. Run `sync` before `update` — it re-reads where the engine lives from `.gitmodules`, which an existing clone otherwise ignores.
 
 ---
 
@@ -320,7 +301,14 @@ The submodule step matters: the processing engine is pinned to an exact version,
 
 **`biofilm-embeddings-gui: command not found`** — you forgot to activate the environment. Run `conda activate biofilm-embeddings` first.
 
-**`could not read Username for 'https://github.com'`** — the processing engine is in a private repo and can't be downloaded anonymously. Make sure `ssh -T git@github.com` authenticates ([step 2](#2-set-up-a-github-ssh-key-one-time)), then run `git submodule sync --recursive && git submodule update --init --recursive`.
+**`could not read Username for 'https://github.com'`** — your copy of the repository recorded a different submodule location than the one it now specifies, and is asking for credentials it doesn't need. A clone keeps whichever URL it was created with, so refresh it:
+
+```bash
+git submodule sync --recursive
+git submodule update --init --recursive
+```
+
+**`Server does not allow request for unadvertised object <sha>`** — your copy records a version of the processing engine that the engine repository no longer publishes. `git pull` to pick up the current pinned version, then `git submodule sync --recursive && git submodule update --init --recursive`.
 
 **`external/biofilm-processing does not appear to be a Python project`** — the processing engine folder is empty, usually because the repo was downloaded as a ZIP or cloned without `--recurse-submodules`. Fix with `git submodule update --init --recursive`, then re-run `bash scripts/setup.sh`.
 
@@ -388,6 +376,6 @@ Developer-facing notes on invariants and internals live in `CLAUDE.md`; open pho
 **Author:** Seh Na Mellick
 CMU Ray and Stephanie Lane Computational Biology Department · CMU Department of Biological Sciences
 
-Built on [biofilm-processing](https://github.com/melsehna/biofilm-processing) (Seh Na Mellick, Jojo Prentice, Andrew Bridges) and Meta AI's [DINOv2](https://github.com/facebookresearch/dinov2).
+Built on [biofilm-processing](https://github.com/BridgesLabCMU/uPULLI-I) (Seh Na Mellick, Jojo Prentice, Andrew Bridges) and Meta AI's [DINOv2](https://github.com/facebookresearch/dinov2).
 
-**License:** no `LICENSE` file has been added to this repository yet. biofilm-processing is MIT; consider matching it before publication.
+**License:** MIT. Copyright (c) 2026 Carnegie Mellon University — full text in [`LICENSE`](LICENSE).
