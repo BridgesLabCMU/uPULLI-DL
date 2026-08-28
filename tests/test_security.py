@@ -6,8 +6,6 @@ that several machines write to, and (once this is published) from datasets
 obtained from other groups. Neither `index.csv` nor a `.pt` cache is trusted
 input just because it is on disk.
 """
-import os
-
 import pytest
 
 torch = pytest.importorskip('torch')

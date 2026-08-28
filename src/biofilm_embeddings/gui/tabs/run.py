@@ -665,7 +665,8 @@ class ProcessingWorker(QObject):
         Returns (path, autoCreatedBool). autoCreatedBool=True means caller
         should rmtree the path at the end of the run.
         """
-        import datetime, shutil
+        import datetime
+        import shutil
         if userOutputRoot and os.path.isdir(userOutputRoot):
             if not self._onSameMount(userOutputRoot, nasMirrorDir):
                 freeGb = shutil.disk_usage(userOutputRoot).free / (1024 ** 3)
@@ -759,7 +760,6 @@ class ProcessingWorker(QObject):
         """After per-plate extractions, concat per-plate caches into the master
         cls_cache.pt at outputRoot/embeddings/, then sync that to NAS and
         delete local."""
-        import shutil
         from ...embeddings.extractor import aggregatePerPlateCaches
 
         masterDir = os.path.join(outputRoot, 'embeddings')
@@ -788,7 +788,7 @@ class ProcessingWorker(QObject):
 
     def _syncPlateToNas(self, localPlateDir, nasPlateDir):
         """rsync local plate dir → NAS, then delete the local copy on success."""
-        import shutil, subprocess
+        import subprocess
         if not os.path.isdir(localPlateDir):
             self.log.emit(f'  [NAS sync] skip — local plate dir missing: {localPlateDir}')
             return False
@@ -831,7 +831,8 @@ class ProcessingWorker(QObject):
         """Robust recursive delete. Tries shutil.rmtree first; if that fails
         or leaves anything behind, falls back to `rm -rf`. Returns True only
         when the directory is verified gone."""
-        import shutil, subprocess
+        import shutil
+        import subprocess
         if not os.path.exists(path):
             return True
         try:

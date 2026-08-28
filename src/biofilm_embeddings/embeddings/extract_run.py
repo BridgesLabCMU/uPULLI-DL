@@ -181,7 +181,8 @@ def main(argv=None):
         if fc is not None and fc >= nFrames:
             kept.append(r)
         else:
-            r = dict(r); r['_frames'] = '' if fc is None else fc
+            r = dict(r)
+            r['_frames'] = '' if fc is None else fc
             shortRows.append(r)
     if shortRows:
         from collections import Counter
