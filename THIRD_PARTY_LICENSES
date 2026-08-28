@@ -1,0 +1,90 @@
+Third-party components
+======================
+
+biofilm-embeddings is licensed under the Apache License 2.0 (see LICENSE and NOTICE).
+This file records attribution for third-party work it builds on.
+
+Scope note: this package **redistributes none of the components below**. Python
+dependencies are declared in pyproject.toml and fetched by pip from their own
+publishers; the DINOv2 weights are downloaded from Hugging Face onto the user's machine
+at first run. Apache 2.0 section 4 attaches its notice-retention obligations to
+redistribution of a Work or Derivative Work, so those obligations are not triggered
+here. The attribution is recorded anyway, because a team evaluating this software needs
+to see the license surface without reading the dependency tree.
+
+Every license below was read from the installed distribution's own metadata, or from the
+upstream repository, at the versions noted. Verify again before relying on it for a
+distribution of your own.
+
+
+DINOv2
+------
+Vision transformer whose frozen weights produce every embedding this tool writes.
+
+  Upstream:  https://github.com/facebookresearch/dinov2
+  Copyright: Meta Platforms, Inc. and affiliates
+  License:   Apache License 2.0
+  Weights:   https://huggingface.co/facebook/dinov2-base (and -small/-large/-giant),
+             licensed apache-2.0 per their model cards
+
+  - No DINOv2 source code is copied into this repository. The model is loaded through
+    Hugging Face `transformers` (`Dinov2Model.from_pretrained`), and the weights are
+    fetched at runtime.
+  - **DINOv2 is used unmodified.** No fine-tuning, no architectural change, no weight
+    surgery — the model is a frozen feature extractor, with `requires_grad_(False)` on
+    every parameter. Nothing in this package constitutes a Derivative Work of DINOv2.
+  - The upstream repository ships no NOTICE file, so there is no NOTICE content to
+    propagate. Its LICENSE is the unmodified Apache 2.0 text, identical to this
+    package's own LICENSE.
+
+
+Hugging Face Transformers
+-------------------------
+Provides the actual `Dinov2Model` implementation used at runtime.
+
+  Upstream:  https://github.com/huggingface/transformers
+  License:   Apache License 2.0  (installed metadata, v5.14.1)
+
+
+Other dependencies
+------------------
+Declared in pyproject.toml. Licenses as reported by each installed distribution:
+
+  package           version        license
+  ----------------  -------------  ------------------------------------------------
+  torch             2.13.0         Apache-2.0 AND Apache-2.0 WITH LLVM-exception
+  PySide6           6.11.1         LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
+  numpy             2.0.2          BSD-3-Clause
+  scipy             1.13.1         BSD-3-Clause
+  scikit-image      0.24.0         BSD-3-Clause
+  scikit-learn      1.6.1          BSD-3-Clause
+  pandas            2.3.3          BSD-3-Clause
+  tifffile          2026.3.3       BSD-3-Clause
+  imageio           2.37.4         BSD-2-Clause
+  imageio-ffmpeg    0.6.0          BSD-2-Clause
+  opencv-python     4.14.0.94      Apache-2.0
+  matplotlib        3.11.1         Matplotlib license (PSF-based)
+  tqdm              4.70.0         MPL-2.0 AND MIT
+  biofilm-processing 1.0.0         MIT
+
+Two of these deserve attention before anyone redistributes a build of this software:
+
+  - **PySide6 is copyleft** (LGPL-3.0 / GPL). It supplies the GUI only; the embeddings
+    layer and the headless CLI (`biofilm-embeddings-run`) do not require it at runtime
+    beyond a module-level import in the shared row-collection helpers. A distribution
+    that ships the GUI carries LGPL obligations that the rest of this list does not.
+  - **imageio-ffmpeg** is BSD-2 itself but obtains an FFmpeg binary, whose license
+    depends on how that binary was built (LGPL or GPL). It is used for overlay videos in
+    the processing phase, not for embedding extraction.
+
+
+Processing engine
+-----------------
+Image processing is provided by biofilm-processing, pinned as a git submodule at
+external/biofilm-processing and installed from there.
+
+  Upstream:  https://github.com/BridgesLabCMU/uPULLI-I
+  License:   MIT
+
+MIT is compatible with this package's Apache 2.0 license. The submodule keeps its own
+LICENSE file; nothing in it is relicensed by inclusion here.

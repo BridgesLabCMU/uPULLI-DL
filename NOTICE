@@ -1,0 +1,11 @@
+biofilm-embeddings
+Copyright (c) 2026 Carnegie Mellon University
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Attribution for third-party components this software depends on, including the
+DINOv2 model it loads at runtime, is recorded in THIRD_PARTY_LICENSES.
+
+This product includes no third-party source code. It loads DINOv2 (Copyright Meta
+Platforms, Inc. and affiliates; Apache License 2.0) unmodified, at runtime, via
+Hugging Face Transformers.

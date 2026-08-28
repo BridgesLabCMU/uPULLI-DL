@@ -380,4 +380,6 @@ CMU Ray and Stephanie Lane Computational Biology Department · CMU Department of
 
 Built on [biofilm-processing](https://github.com/BridgesLabCMU/uPULLI-I) (Seh Na Mellick, Jojo Prentice, Andrew Bridges) and Meta AI's [DINOv2](https://github.com/facebookresearch/dinov2).
 
-**License:** MIT. Copyright (c) 2026 Carnegie Mellon University — full text in [`LICENSE`](LICENSE).
+**License:** Apache License 2.0. Copyright (c) 2026 Carnegie Mellon University — full text in [`LICENSE`](LICENSE), with [`NOTICE`](NOTICE) and third-party attribution in [`THIRD_PARTY_LICENSES`](THIRD_PARTY_LICENSES).
+
+DINOv2 is used unmodified as a frozen feature extractor and is not redistributed here — its weights are downloaded from Hugging Face on first run. It is Apache 2.0, Copyright Meta Platforms, Inc. and affiliates.

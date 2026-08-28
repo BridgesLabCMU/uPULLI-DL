@@ -9,9 +9,9 @@ description = "biofilm-embeddings: biofilm image processing + DINOv2 ViT embeddi
 authors = [
   { name="Seh Na S. Mellick" }
 ]
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 classifiers = [
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
 ]
 requires-python = ">=3.10"
 dependencies = [
@@ -52,6 +52,26 @@ analysis = [
 dev = [
     "pytest",
 ]
+
+[tool.ruff]
+# CI lints with a bare `ruff check .` from the repo root, which without this config
+# descends into external/biofilm-processing and applies ruff's defaults to the engine's
+# code — ignoring the engine's own ruff config (its excludes, its E501 policy, its
+# per-file ignores). That produced ~180 findings in code this repo does not own and
+# cannot fix here, on top of its own. Exclude the submodule: the engine lints itself in
+# its own CI.
+extend-exclude = ["external"]
+
+[tool.ruff.lint]
+# Pyflakes (F) + pycodestyle (E) only — the same policy the engine settled on. F is the
+# part that catches real defects (undefined names, unused imports). E501 is off because
+# this codebase's explanatory comments and log strings run long on purpose; reflowing
+# them would cost more than it returns. Ruff's default rule set is deliberately not used:
+# it flags ~70 stylistic issues here (blind `except Exception`, un-sorted imports,
+# unused loop unpacking) that are idiomatic in a GUI worker whose whole job is to never
+# die on one bad well.
+select = ["E", "F"]
+ignore = ["E501"]
 
 [tool.pytest.ini_options]
 # A bare `pytest` must collect ONLY this repo's suite. Without testpaths it walks the whole

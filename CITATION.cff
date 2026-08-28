@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "biofilm-embeddings: DINOv2 vision-transformer embeddings for brightfield biofilm timelapse microscopy"
+title: "uPULLI-DL: DINOv2 vision-transformer embeddings for brightfield biofilm timelapse microscopy"
 abstract: >-
   Turns per-well brightfield timelapse image stacks from 96-well plate
   microscopy into frozen DINOv2 vision-transformer embeddings. Each frame is
@@ -13,6 +13,7 @@ type: software
 version: 0.1.0
 date-released: 2026-07-29
 repository-code: "https://github.com/BridgesLabCMU/uPULLI-DL"
+license: Apache-2.0
 authors:
   - family-names: Mellick
     given-names: "Seh Na S."
