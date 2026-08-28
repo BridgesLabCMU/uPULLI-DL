@@ -59,7 +59,7 @@ Miniconda gives you an isolated Python environment so this package's dependencie
 - **Windows / macOS / Linux:** download and run the installer from <https://www.anaconda.com/download/success> (pick "Miniconda" — it's smaller than Anaconda and works the same way).
 - Accept all defaults.
 - After install, open the **"Anaconda Prompt"** — or the **"Anaconda PowerShell Prompt"** if you prefer PowerShell — on Windows, or your normal **Terminal** on macOS / Linux. **Use that same window for every step below.**
-- On Windows this matters: the Miniconda installer deliberately leaves conda off the system PATH, so `conda` does not exist in an ordinary `cmd` or PowerShell window. The Anaconda prompts are just shortcuts that switch it on, and `git` works in them too, so one window covers the whole install.
+- On Windows, use an Anaconda prompt unless you already have a PowerShell where `conda` works. The Miniconda installer leaves conda off the system PATH by default, so a plain `cmd`/PowerShell window often can't find it; the Anaconda prompts switch it on, and `git` works in them too, so one window covers the whole install. If `conda --version` already answers in your usual PowerShell, that window is fine.
 
 ### 2. Download biofilm-embeddings
 
