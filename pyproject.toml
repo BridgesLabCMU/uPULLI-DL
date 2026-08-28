@@ -53,6 +53,20 @@ dev = [
     "pytest",
 ]
 
+[tool.pytest.ini_options]
+# A bare `pytest` must collect ONLY this repo's suite. Without testpaths it walks the whole
+# tree, including external/biofilm-processing, which is wrong twice over:
+#   1. The engine's tests are not ours to run — it has its own CI and extra dependencies
+#      (mahotas etc.) that this package deliberately does not install.
+#   2. It hard-fails collection. The engine ships
+#      src/multiWellAnalysis/tests/test_security.py and this repo ships
+#      tests/test_security.py; neither directory is a package, so both import as module
+#      `test_security` and pytest aborts with "import file mismatch".
+# This also keeps local runs identical to CI, which invokes a bare `pytest -v`. Passing an
+# explicit `pytest tests/` locally masked (2) until CI caught it.
+testpaths = ["tests"]
+norecursedirs = ["external", "assets", "build", "dist", "*.egg-info"]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 

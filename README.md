@@ -1,12 +1,14 @@
-# biofilm-embeddings
+# uPULLI-DL
 
 [![CI](https://github.com/BridgesLabCMU/uPULLI-DL/actions/workflows/ci.yml/badge.svg)](https://github.com/BridgesLabCMU/uPULLI-DL/actions/workflows/ci.yml)
 
 **Deep-learning embeddings for biofilm timelapse microscopy of 96-well plates.**
 
-biofilm-embeddings turns per-well image stacks from a Cytation5 microscope into **DINOv2 vision-transformer embeddings** — a numerical fingerprint of what each well looks like at every timepoint. Instead of hand-picking features like "biomass" or "texture," a frozen pretrained model describes each frame with 768 numbers, giving you a trajectory through embedding space for every well. Those trajectories feed downstream analysis: fPCA, UMAP, clustering, path signatures.
+uPULLI-DL turns per-well image stacks from a Cytation5 microscope into **DINOv2 vision-transformer embeddings** — a numerical fingerprint of what each well looks like at every timepoint. Instead of hand-picking features like "biomass" or "texture," a frozen pretrained model describes each frame with 768 numbers, giving you a trajectory through embedding space for every well. Those trajectories feed downstream analysis: fPCA, UMAP, clustering, path signatures.
 
 It runs as a desktop GUI, or headlessly from the command line for big batches on a GPU machine.
+
+The installed Python package and its commands are named `biofilm-embeddings` — so you clone `uPULLI-DL` but launch `biofilm-embeddings-gui`.
 
 > **New here? Skip straight to [Quick start](#quick-start).** Installation takes ~15 minutes. You'll need `git`, Miniconda, and realistically a GPU — no GitHub account or credentials required.
 
