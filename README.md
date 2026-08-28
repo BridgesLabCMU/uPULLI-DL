@@ -77,18 +77,34 @@ Don't have Git? Install it from <https://git-scm.com/downloads> (Windows/macOS),
 
 ### 3. Install it
 
+**Windows** — in the Anaconda Prompt:
+
+```bat
+conda create -n biofilm-embeddings python=3.11 -y
+conda activate biofilm-embeddings
+python scripts\setup.py
+```
+
+**macOS / Linux** — in your terminal:
+
 ```bash
 conda create -n biofilm-embeddings python=3.11 -y
 conda activate biofilm-embeddings
 bash scripts/setup.sh
 ```
 
+Both run the same installer; `setup.sh` is a wrapper around `setup.py`. `python scripts/setup.py` works everywhere, so use it if you are unsure.
+
 What these do:
 - `conda create …` — makes a new Python environment named `biofilm-embeddings`.
 - `conda activate biofilm-embeddings` — switches into it. **You'll need to do this every time you open a fresh terminal**, unless you use the desktop shortcut (step 5).
-- `bash scripts/setup.sh` — fetches the processing engine and installs everything in the right order. This downloads PyTorch and several GB of CUDA libraries, so expect it to take a while.
+- the setup script — fetches the processing engine and installs everything in the right order. This downloads PyTorch and several GB of CUDA libraries, so expect it to take a while.
 
-The order matters, which is the whole reason `setup.sh` exists: the processing engine isn't on PyPI, so it has to be installed *before* this package. If you install by hand and get a "No matching distribution found" error, that's why.
+The order matters, which is the whole reason the setup script exists: the processing engine isn't on PyPI, so it has to be installed *before* this package. If you install by hand and get a "No matching distribution found" error, that's why.
+
+> **Windows: don't use `bash scripts/setup.sh`.** The Anaconda Prompt has no `bash`. Git Bash does, but `conda activate` usually isn't set up there, so neither window can run that command on its own — use `python scripts\setup.py` from the Anaconda Prompt instead.
+>
+> **Windows: `mahotas` build error?** The processing engine depends on `mahotas`, a C library with no ready-made Windows package, so pip tries to compile it. `setup.py` heads this off by installing it from conda-forge first. If that didn't work, run `conda install -c conda-forge mahotas -y` yourself and re-run setup — or install the [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" checked.
 
 Once it finishes, launch the app:
 
@@ -173,7 +189,7 @@ Preprocessing settings (block diameter, threshold, dust correction) behave exact
 | Wells per batch | 4 | How many wells go to the GPU at once. Lower this first if you hit out-of-memory errors. |
 | Loader workers | 3 | CPU processes reading TIFFs in the background. |
 
-**NAS mirror** (optional) changes how a run is staged. With it on, each plate is processed, embedded, copied to your network drive, and deleted locally before moving to the next plate — so you never need disk space for the whole experiment at once. Leave it off for ordinary local runs.
+**NAS mirror** (optional) changes how a run is staged. With it on, each plate is processed, embedded, copied to your network drive, and deleted locally before moving to the next plate — so you never need disk space for the whole experiment at once. Leave it off for ordinary local runs. It copies with `rsync`, which macOS and Linux have and Windows does not, so on Windows this option stays off — everything else works normally.
 
 ### Run tab
 
@@ -292,7 +308,7 @@ cd /path/to/uPULLI-DL
 git pull
 git submodule sync --recursive            # picks up any change to the engine's location
 git submodule update --init --recursive   # moves the engine to the pinned version
-bash scripts/setup.sh                     # picks up any new dependencies
+python scripts/setup.py                   # picks up any new dependencies (all platforms)
 ```
 
 The submodule steps matter: the processing engine is pinned to an exact version, and `git pull` alone won't move it. Run `sync` before `update` — it re-reads where the engine lives from `.gitmodules`, which an existing clone otherwise ignores.
@@ -312,9 +328,11 @@ git submodule update --init --recursive
 
 **`Server does not allow request for unadvertised object <sha>`** — your copy records a version of the processing engine that the engine repository no longer publishes. `git pull` to pick up the current pinned version, then `git submodule sync --recursive && git submodule update --init --recursive`.
 
-**`external/biofilm-processing does not appear to be a Python project`** — the processing engine folder is empty, usually because the repo was downloaded as a ZIP or cloned without `--recurse-submodules`. Fix with `git submodule update --init --recursive`, then re-run `bash scripts/setup.sh`.
+**Windows: `'bash' is not recognized as an internal or external command`** — the Anaconda Prompt has no `bash`. Run `python scripts\setup.py` instead; it does exactly the same thing.
 
-**`No matching distribution found for biofilm-processing==1.0.0`** — the engine wasn't installed before this package. Run `bash scripts/setup.sh`, which does it in the right order. If you just changed which engine version is pinned, you also need to `git add external/biofilm-processing` so the new version is the one that gets installed.
+**`external/biofilm-processing does not appear to be a Python project`** — the processing engine folder is empty, usually because the repo was downloaded as a ZIP or cloned without `--recurse-submodules`. Fix with `git submodule update --init --recursive`, then re-run `python scripts/setup.py`.
+
+**`No matching distribution found for biofilm-processing==1.0.1`** — the engine wasn't installed before this package. Run `python scripts/setup.py`, which does it in the right order. If you just changed which engine version is pinned, you also need to `git add external/biofilm-processing` so the new version is the one that gets installed.
 
 **`CUDA error: no kernel image is available for execution on the device`** — your GPU is older than the PyTorch build that got installed. Current PyTorch defaults to a CUDA 13 build supporting sm_75 and newer (Turing onward); CUDA 13 dropped support for Pascal and older. The confusing part is that `torch.cuda.is_available()` returns `True` and the card reports its name correctly — it only fails at the first real computation. Check what your install supports with:
 

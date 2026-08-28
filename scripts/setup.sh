@@ -1,31 +1,26 @@
 #!/usr/bin/env bash
-# One-shot setup for biofilm-embeddings.
+# One-shot setup for biofilm-embeddings (macOS / Linux, or Git Bash on Windows).
 #
-# The image-processing engine (biofilm-processing) is NOT on PyPI — it is
-# vendored as a pinned git submodule at external/biofilm-processing. It must be
-# (1) fetched and (2) pip-installed editable BEFORE this package, otherwise
-# `pip install -e .` cannot satisfy `biofilm-processing==1.0.0`. This script
-# does both in the right order. Safe to re-run.
+# This is a thin wrapper around scripts/setup.py, which holds the actual logic. The real
+# work lives in Python because the Anaconda Prompt on Windows has no `bash`, so a shell
+# script cannot be the single documented install path. Keeping one implementation means
+# the two cannot drift apart.
+#
+#   bash scripts/setup.sh        # this wrapper
+#   python scripts/setup.py      # identical, and the only option on Windows cmd/PowerShell
+#
+# Safe to re-run.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "==> Fetching the pinned processing submodule (external/biofilm-processing)…"
-# Sync first so a stale local URL (e.g. an old SSH remote) is replaced by the
-# HTTPS URL pinned in .gitmodules before we try to fetch.
-git submodule sync --recursive
-git submodule update --init --recursive
-
-if [ ! -f external/biofilm-processing/pyproject.toml ]; then
-  echo "ERROR: external/biofilm-processing is still empty after submodule update."
-  echo "       Check that .gitmodules points at the biofilm-processing repo and"
-  echo "       that you have access to it, then re-run this script."
+# `python` is not guaranteed to exist (some installs only provide `python3`), and an
+# activated conda env provides both. Prefer python3 when present.
+PY="python3"
+command -v python3 >/dev/null 2>&1 || PY="python"
+command -v "$PY" >/dev/null 2>&1 || {
+  echo "ERROR: no python interpreter on PATH. Activate your environment first:" >&2
+  echo "         conda activate biofilm-embeddings" >&2
   exit 1
-fi
+}
 
-echo "==> Installing the processing engine first (editable)…"
-pip install -e external/biofilm-processing
-
-echo "==> Installing biofilm-embeddings (editable)…"
-pip install -e .
-
-echo "==> Done. Launch the GUI with:  biofilm-embeddings-gui"
+exec "$PY" scripts/setup.py "$@"
