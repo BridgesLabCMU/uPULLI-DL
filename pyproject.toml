@@ -16,13 +16,15 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     # Pinned (==) on purpose, not >=: the processing engine is vendored as a git
-    # submodule at external/biofilm-processing (tag v1.0.0) and installed editable
+    # submodule at external/biofilm-processing (tag v1.0.1) and installed editable
     # from there. Pinning prevents silent version-drift in the render, which would
     # reintroduce batch effects in the DINOv2 embeddings. Bump deliberately:
     # advance the submodule to a new tag, then bump this pin in the same commit.
-    # v1.0.0 is the paper-locked release; its render is byte-identical to v0.5.0
-    # (analysis_main/registration/io_utils/image_metadata unchanged).
-    "biofilm-processing==1.0.0",
+    # v1.0.1 differs from the paper-locked v1.0.0 ONLY in licensing (Apache 2.0 +
+    # NOTICE) and package metadata -- `git diff v1.0.0 v1.0.1` touches no file under
+    # src/, so the render is unchanged and embeddings made under either are
+    # directly comparable.
+    "biofilm-processing==1.0.1",
     "numpy",
     "scipy",
     "scikit-image",

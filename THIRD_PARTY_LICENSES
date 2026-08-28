@@ -65,7 +65,7 @@ Declared in pyproject.toml. Licenses as reported by each installed distribution:
   opencv-python     4.14.0.94      Apache-2.0
   matplotlib        3.11.1         Matplotlib license (PSF-based)
   tqdm              4.70.0         MPL-2.0 AND MIT
-  biofilm-processing 1.0.0         MIT
+  biofilm-processing 1.0.1         Apache-2.0
 
 Two of these deserve attention before anyone redistributes a build of this software:
 
@@ -84,7 +84,15 @@ Image processing is provided by biofilm-processing, pinned as a git submodule at
 external/biofilm-processing and installed from there.
 
   Upstream:  https://github.com/BridgesLabCMU/uPULLI-I
-  License:   MIT
+  Version:   v1.0.1 (the pinned tag)
+  Copyright: (c) 2026 Carnegie Mellon University
+  License:   Apache License 2.0 -- same terms as this package
 
-MIT is compatible with this package's Apache 2.0 license. The submodule keeps its own
-LICENSE file; nothing in it is relicensed by inclusion here.
+Cloning this repository with --recurse-submodules produces a checkout of the engine at
+external/biofilm-processing carrying its own LICENSE and NOTICE. Those files are the
+engine's; they are not superseded by this package's copies at the repository root.
+
+Note for anyone reading the paper: the published embeddings were produced under the
+engine's v1.0.0, which was MIT. v1.0.1 changes licensing and package metadata only --
+`git diff v1.0.0 v1.0.1` touches no file under src/ -- so the render is identical and
+the pin move does not affect reproducibility of the published results.
