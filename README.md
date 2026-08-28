@@ -58,7 +58,8 @@ Miniconda gives you an isolated Python environment so this package's dependencie
 
 - **Windows / macOS / Linux:** download and run the installer from <https://www.anaconda.com/download/success> (pick "Miniconda" — it's smaller than Anaconda and works the same way).
 - Accept all defaults.
-- After install, open the **"Anaconda Prompt"** (Windows) or your normal **Terminal** (macOS / Linux). All commands below get typed there.
+- After install, open the **"Anaconda Prompt"** — or the **"Anaconda PowerShell Prompt"** if you prefer PowerShell — on Windows, or your normal **Terminal** on macOS / Linux. **Use that same window for every step below.**
+- On Windows this matters: the Miniconda installer deliberately leaves conda off the system PATH, so `conda` does not exist in an ordinary `cmd` or PowerShell window. The Anaconda prompts are just shortcuts that switch it on, and `git` works in them too, so one window covers the whole install.
 
 ### 2. Download biofilm-embeddings
 
@@ -77,7 +78,7 @@ Don't have Git? Install it from <https://git-scm.com/downloads> (Windows/macOS),
 
 ### 3. Install it
 
-**Windows** — in the Anaconda Prompt:
+**Windows** — in the same Anaconda prompt window:
 
 ```bat
 conda create -n biofilm-embeddings python=3.11 -y
@@ -102,7 +103,7 @@ What these do:
 
 The order matters, which is the whole reason the setup script exists: the processing engine isn't on PyPI, so it has to be installed *before* this package. If you install by hand and get a "No matching distribution found" error, that's why.
 
-> **Windows: don't use `bash scripts/setup.sh`.** The Anaconda Prompt has no `bash`. Git Bash does, but `conda activate` usually isn't set up there, so neither window can run that command on its own — use `python scripts\setup.py` from the Anaconda Prompt instead.
+> **Windows: don't use `bash scripts/setup.sh`.** The Anaconda prompts have no `bash`; Git Bash has `bash` but usually no initialized `conda`, so neither window can run that command on its own. `python scripts\setup.py` does the same thing and runs in either Anaconda prompt.
 >
 > **Windows: `mahotas` build error?** The processing engine depends on `mahotas`, a C library with no ready-made Windows package, so pip tries to compile it. `setup.py` heads this off by installing it from conda-forge first. If that didn't work, run `conda install -c conda-forge mahotas -y` yourself and re-run setup — or install the [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" checked.
 
@@ -125,9 +126,7 @@ If that prints `GPU OK: …`, you're set.
 If it fails with **`no kernel image is available for execution on the device`**, your graphics card is older than the PyTorch build that got installed. This is a common and confusing one, because `torch.cuda.is_available()` still says `True` and the card still shows up by name — it only breaks at the first real computation. Fix for Pascal-generation cards (Quadro P6000, GTX 10-series, Titan Xp):
 
 ```bash
-pip install "torch==2.13.0+cu126" \
-  --index-url https://download.pytorch.org/whl/cu126 \
-  --extra-index-url https://pypi.org/simple
+pip install "torch==2.13.0+cu126" --index-url https://download.pytorch.org/whl/cu126 --extra-index-url https://pypi.org/simple
 ```
 
 Then re-run the check above. See [Troubleshooting](#troubleshooting) for the details and for other card generations.
@@ -343,9 +342,7 @@ python -c "import torch; print(torch.cuda.get_arch_list()); print(torch.cuda.get
 For Pascal cards (Quadro P6000, GTX 10-series, Titan Xp — compute capability 6.1), install the CUDA 12.6 build:
 
 ```bash
-pip install "torch==2.13.0+cu126" \
-  --index-url https://download.pytorch.org/whl/cu126 \
-  --extra-index-url https://pypi.org/simple
+pip install "torch==2.13.0+cu126" --index-url https://download.pytorch.org/whl/cu126 --extra-index-url https://pypi.org/simple
 ```
 
 Specify the exact `+cu126` version. Plain `torch==2.13.0` looks "already satisfied" to pip and it will do nothing.
