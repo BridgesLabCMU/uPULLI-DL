@@ -58,8 +58,9 @@ Miniconda gives you an isolated Python environment so this package's dependencie
 
 - **Windows / macOS / Linux:** download and run the installer from <https://www.anaconda.com/download/success> (pick "Miniconda" — it's smaller than Anaconda and works the same way).
 - Accept all defaults.
-- After install, open the **"Anaconda Prompt"** — or the **"Anaconda PowerShell Prompt"** if you prefer PowerShell — on Windows, or your normal **Terminal** on macOS / Linux. **Use that same window for every step below.**
-- On Windows, use an Anaconda prompt unless you already have a PowerShell where `conda` works. The Miniconda installer leaves conda off the system PATH by default, so a plain `cmd`/PowerShell window often can't find it; the Anaconda prompts switch it on, and `git` works in them too, so one window covers the whole install. If `conda --version` already answers in your usual PowerShell, that window is fine.
+- After install, open a terminal where **`conda activate` works**, and use that same window for every step below. On Windows the "Anaconda Prompt" and "Anaconda PowerShell Prompt" shortcuts guarantee this; on macOS / Linux your normal terminal does, since the installer sets up your shell for you.
+- **Any Command Prompt or PowerShell will do just as well, if conda is set up in it.** The "Anaconda Prompt" is not a different program — it is `cmd.exe` with conda's `activate.bat` run first, which is the only thing that makes `conda activate` available. To get the same in the terminal you normally use, run `conda init cmd.exe` (or `conda init powershell`) once from an Anaconda Prompt and reopen your window.
+- Test it with **`conda activate base`**, not `conda --version`. Having `conda` on your PATH is enough for `--version` to answer while `conda activate` still fails with *"Your shell has not been properly configured to use 'conda activate'"* — that's the case `conda init` fixes.
 
 ### 2. Download biofilm-embeddings
 
@@ -78,7 +79,7 @@ Don't have Git? Install it from <https://git-scm.com/downloads> (Windows/macOS),
 
 ### 3. Install it
 
-**Windows** — in the same Anaconda prompt window:
+**Windows** — in the same window from step 1:
 
 ```bat
 conda create -n biofilm-embeddings python=3.11 -y
@@ -103,7 +104,7 @@ What these do:
 
 The order matters, which is the whole reason the setup script exists: the processing engine isn't on PyPI, so it has to be installed *before* this package. If you install by hand and get a "No matching distribution found" error, that's why.
 
-> **Windows: don't use `bash scripts/setup.sh`.** The Anaconda prompts have no `bash`; Git Bash has `bash` but usually no initialized `conda`, so neither window can run that command on its own. `python scripts\setup.py` does the same thing and runs in either Anaconda prompt.
+> **Windows: don't use `bash scripts/setup.sh`.** Command Prompt and PowerShell have no `bash`; Git Bash has `bash` but usually no initialized `conda`, so neither window can run that command on its own. `python scripts\setup.py` does the same thing and needs only the Python you just activated.
 >
 > **Windows: `mahotas` build error?** The processing engine depends on `mahotas`, a C library with no ready-made Windows package, so pip tries to compile it. `setup.py` heads this off by installing it from conda-forge first. If that didn't work, run `conda install -c conda-forge mahotas -y` yourself and re-run setup — or install the [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" checked.
 
@@ -327,7 +328,7 @@ git submodule update --init --recursive
 
 **`Server does not allow request for unadvertised object <sha>`** — your copy records a version of the processing engine that the engine repository no longer publishes. `git pull` to pick up the current pinned version, then `git submodule sync --recursive && git submodule update --init --recursive`.
 
-**Windows: `'bash' is not recognized as an internal or external command`** — the Anaconda Prompt has no `bash`. Run `python scripts\setup.py` instead; it does exactly the same thing.
+**Windows: `'bash' is not recognized as an internal or external command`** — `bash` is a Unix shell and Windows has no such command. Run `python scripts\setup.py` instead; it does exactly the same thing.
 
 **`external/biofilm-processing does not appear to be a Python project`** — the processing engine folder is empty, usually because the repo was downloaded as a ZIP or cloned without `--recurse-submodules`. Fix with `git submodule update --init --recursive`, then re-run `python scripts/setup.py`.
 
