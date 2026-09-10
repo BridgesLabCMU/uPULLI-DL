@@ -123,9 +123,30 @@ def _rowFingerprint(rows, embeddingParams):
 
 
 def loadModel(modelName, device):
-    """Load a frozen DINOv2 from HuggingFace transformers."""
+    """Load a frozen DINOv2 from HuggingFace transformers.
+
+    `from_pretrained` downloads the weights on first use and its failure is otherwise
+    opaque: the error arrives in the middle of transformers' own "Loading weights"
+    progress bar and says nothing about needing a network or where the cache lives, so it
+    reads like a bug in this tool. Translate it into something actionable instead.
+    """
     from transformers import Dinov2Model
-    model = Dinov2Model.from_pretrained(modelName)
+    try:
+        model = Dinov2Model.from_pretrained(modelName)
+    except OSError as e:
+        raise RuntimeError(
+            f'Could not load the model "{modelName}" ({type(e).__name__}: {e}).\n'
+            f'The weights are downloaded from Hugging Face the first time they are used '
+            f'and then cached, so this usually means one of:\n'
+            f'  - no internet access on this machine (a cached copy would have worked; '
+            f'set HF_HOME to a directory that already has one, or copy that directory '
+            f'over from a machine that does)\n'
+            f'  - the download was interrupted, leaving a partial cache — delete '
+            f'~/.cache/huggingface/hub (or $HF_HOME/hub) and retry\n'
+            f'  - the model id is wrong; expected something like facebook/dinov2-base\n'
+            f'Note dinov2-giant is ~4 GB, and Stop does not interrupt a download in '
+            f'progress.'
+        ) from e
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)
