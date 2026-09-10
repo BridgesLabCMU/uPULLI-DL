@@ -87,36 +87,6 @@ def buildParser():
     return p
 
 
-def _frameCount(path):
-    """Frame count of a processed stack from TIFF headers — no pixel read.
-
-    Uses the *series* shape, not `len(tf.pages)`. `saveStack` writes the stack
-    with a bare `tifffile.imwrite(path, (T,H,W) array)`, and current tifffile
-    stores that as a SINGLE page whose series shape is (T, H, W) — so
-    `len(tf.pages)` returns 1 no matter how many frames there are, and every
-    well would be reported as too short and skipped. (Older tifffile wrote one
-    page per frame, which is why the page count ever appeared to work.)
-    The series shape is correct for both layouts.
-
-    Applies the same smallest-axis-is-T heuristic as `dataset._toHWT`, so this
-    count agrees with the frame count the dataset will actually see.
-    """
-    import tifffile
-    try:
-        with tifffile.TiffFile(path) as tf:
-            shape = tf.series[0].shape
-    except Exception:
-        return None
-    if len(shape) == 2:
-        return 1
-    if len(shape) != 3:
-        return None
-    h, w, t = shape
-    if h < w and h < t:   # (T, H, W) — smallest axis at front
-        return h
-    return t              # already (H, W, T)
-
-
 def main(argv=None):
     args = buildParser().parse_args(argv)
 
@@ -129,13 +99,19 @@ def main(argv=None):
     # module (gui/__init__ and gui/tabs/__init__ are empty, so importing under
     # offscreen Qt creates no QApplication). Reusing them keeps the path
     # resolution + frame-count logic single-source with the GUI Extract button.
-    from biofilm_embeddings.gui.tabs.run import _collectProcessedRows, _peekFrameCount
+    from biofilm_embeddings.gui.tabs.run import (
+        _collectProcessedRows,
+        _partitionShortWells,
+        _peekFrameCount,
+        _writeExcludedWells,
+    )
 
     def log(m):
         print(m, flush=True)
 
     log(f'Scanning {root} for processed.tif via plate index files…')
-    rows = _collectProcessedRows(root, logFn=log)
+    dropped = []
+    rows = _collectProcessedRows(root, logFn=log, droppedOut=dropped)
     if not rows:
         print('ERROR: no resolvable _processed.tif found under the output root. '
               'Is this a biofilm-processing output tree? (each plate needs '
@@ -169,39 +145,20 @@ def main(argv=None):
             f'mix physical scales and are NOT comparable. Run one magnification '
             f'per output root.')
 
-    # Pre-filter: drop wells with FEWER than nFrames frames (e.g. a plate
-    # acquired with one fewer timepoint). The dataset would otherwise hard-crash
-    # on the first short stack, mid-run. Page-header count, cheap. The kept set
-    # all has >= nFrames (the dataset truncates the extras), so the embeddings
-    # are frame-aligned. Excluded wells are recorded next to the cache.
+    # Pre-filter: drop wells with FEWER than nFrames frames (e.g. a plate acquired with
+    # one fewer timepoint). The dataset would otherwise hard-crash on the first short
+    # stack, mid-run. Header-only count, cheap. The kept set all has >= nFrames (the
+    # dataset truncates the extras), so the embeddings are frame-aligned. Shared with the
+    # GUI worker so both paths exclude and report identically.
     log(f'  checking frame counts across {len(rows)} wells…')
-    kept, shortRows = [], []
-    for r in rows:
-        fc = _frameCount(r['processed'])
-        if fc is not None and fc >= nFrames:
-            kept.append(r)
-        else:
-            r = dict(r)
-            r['_frames'] = '' if fc is None else fc
-            shortRows.append(r)
-    if shortRows:
-        from collections import Counter
-        byPlate = Counter(r.get('plate', '') for r in shortRows)
-        log(f'  SKIPPING {len(shortRows)} wells with < {nFrames} frames (or unreadable):')
-        for pl, n in sorted(byPlate.items()):
-            log(f'    {n} wells — plate {pl}')
+    kept, shortRows = _partitionShortWells(rows, nFrames, log)
+    excluded = dropped + shortRows
+    if excluded:
+        log(f'  WARNING: {len(excluded)} of {len(kept) + len(excluded)} wells are NOT in '
+            f'this cache. See excluded_short_wells.csv for which and why.')
         if not args.dry_run:
-            import csv as _csv
-            embDir = os.path.join(args.cache_dir or root, 'embeddings')
-            os.makedirs(embDir, exist_ok=True)
-            exPath = os.path.join(embDir, 'excluded_short_wells.csv')
-            with open(exPath, 'w', newline='') as f:
-                w = _csv.writer(f)
-                w.writerow(['plate', 'well', 'mag', 'frames', 'needed', 'processed'])
-                for r in shortRows:
-                    w.writerow([r.get('plate', ''), r.get('well', ''), r.get('mag', ''),
-                                r.get('_frames', ''), nFrames, r.get('processed', '')])
-            log(f'  excluded wells recorded: {exPath}')
+            _writeExcludedWells(os.path.join(args.cache_dir or root, 'embeddings'),
+                                excluded, nFrames, log)
     rows = kept
     if not rows:
         print(f'ERROR: no wells left with >= {nFrames} frames.', file=sys.stderr)

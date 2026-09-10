@@ -217,7 +217,7 @@ Phase 2 writes one cache for the whole run:
 <output>/embeddings/
     cls_cache.pt               the embeddings
     index.csv                  which well is which row
-    excluded_short_wells.csv   wells skipped for having too few frames (if any)
+    excluded_short_wells.csv   every well left out of the cache, and why (if any)
 ```
 
 To load the embeddings in Python:
@@ -246,7 +246,7 @@ Row *i* of `cls` corresponds to `wells[i]` and `plates[i]`.
 
 This is the part worth reading before a real run. Embeddings are only comparable to each other if they were made the same way.
 
-**Use the same number of frames.** Every well in one cache is embedded over the same number of timepoints. Wells with *more* frames get truncated; wells with **fewer are skipped entirely** and listed in `excluded_short_wells.csv`. Check that file after a run — if a whole plate is missing, this is usually why.
+**Use the same number of frames.** Every well in one cache is embedded over the same number of timepoints. Wells with *more* frames get truncated; wells with **fewer are skipped entirely**. Any well missing from a cache is listed in `excluded_short_wells.csv` with a `reason`: `fewer_frames` (the stack exists but is too short), `unreadable`, or `no_processed_tif` (phase 1 never produced a stack for that well — usually it errored). **Check that file whenever a cache has fewer wells than you expect**, and compare its count against your plate's `index.csv`.
 
 **Use one magnification per cache.** 4x and 10x images are different physical scales. Never mix them.
 
@@ -351,7 +351,7 @@ Specify the exact `+cu126` version. Plain `torch==2.13.0` looks "already satisfi
 
 **Extraction says it skipped every well** — the frame count it inferred is larger than the frames your stacks actually have. Run with `--dry-run` to see the counts, then pin the right one with `--n-frames`.
 
-**A whole plate is missing from the results** — check `embeddings/excluded_short_wells.csv`. A plate acquired with one fewer timepoint than the rest gets skipped wholesale to keep frames aligned.
+**Wells or whole plates are missing from the results** — check `embeddings/excluded_short_wells.csv`; every excluded well is listed there with a reason. A plate acquired with one fewer timepoint than the rest gets skipped wholesale (`fewer_frames`) to keep frames aligned. If instead a *subset* of a plate is missing with `no_processed_tif`, phase 1 failed on those wells — look for `status=error` rows in that plate's `processedImages/index.csv` and re-run phase 1 for the plate, which resumes and only redoes the missing wells.
 
 **The first run stalls for a long time with no output** — it's downloading model weights from HuggingFace (~350 MB for `dinov2-base`, ~4 GB for `dinov2-giant`). This happens once; afterwards they're cached. It needs internet access the first time.
 

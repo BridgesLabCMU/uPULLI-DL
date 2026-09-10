@@ -847,12 +847,18 @@ class ProcessingWorker(QObject):
         return not os.path.exists(path)
 
 
-def _collectProcessedRows(outputRoot, logFn):
+def _collectProcessedRows(outputRoot, logFn, droppedOut=None):
     """Walk outputRoot for every plate's index.csv, return rows with an
     existing `processed` file.
 
     `_processed.tif` is the single fixed-fpMean render (biofilm-processing >=
     v0.5.0); read it directly — the old `_processed_fpHalf.tif` swap is gone.
+
+    Rows whose `processed` file does not resolve are dropped — that is how a
+    plate whose phase 1 failed on some wells silently yields a short cache (an
+    errored well is still written to index.csv by `_saveIndex`, but with no
+    `processed` value). Pass `droppedOut` (a list) to receive those rows so the
+    caller can record them next to the cache instead of losing them to the log.
     """
     rows = []
     plateCount = 0
@@ -875,17 +881,103 @@ def _collectProcessedRows(outputRoot, logFn):
         # trees (where index.csv stores dead staging paths) work — and rewrite
         # the column so ProcessedTifDataset reads the resolved file.
         indexDir = os.path.dirname(indexPath)
+        stored = df['processed'].copy()
         df['processed'] = df['processed'].apply(
             lambda p: resolveProcessedPath(indexDir, p))
+        if droppedOut is not None:
+            for i in df.index[df['processed'] == '']:
+                d = df.loc[i].to_dict()
+                d['reason'] = 'no_processed_tif'
+                d['processed'] = stored.loc[i]   # report the path index.csv named
+                droppedOut.append(d)
         df = df[df['processed'] != '']
         kept = len(df)
 
         rows.extend(row.to_dict() for _, row in df.iterrows())
 
-        logFn(f'  {indexPath}: {kept}/{before} wells with processed.tif')
+        note = '' if kept == before else '   <-- WELLS MISSING A PROCESSED STACK'
+        logFn(f'  {indexPath}: {kept}/{before} wells with processed.tif{note}')
         plateCount += 1
     logFn(f'  total: {len(rows)} wells across {plateCount} plate index files')
     return rows
+
+
+def _frameCountFromHeader(tifPath):
+    """Frame count of a processed stack from TIFF headers — no pixel read.
+
+    Uses the *series* shape, not `len(tf.pages)`. `saveStack` writes the stack with a
+    bare `tifffile.imwrite(path, (T,H,W) array)`, and current tifffile stores that as a
+    SINGLE page whose series shape is (T, H, W) — so `len(tf.pages)` returns 1 no matter
+    how many frames there are, and every well would be reported as too short and skipped.
+
+    Applies the same smallest-axis-is-T heuristic as `dataset._toHWT`, so this count
+    agrees with the frame count the dataset will actually see. Returns None if the file
+    cannot be read. This is the single implementation — `extract_run.py` imports it
+    rather than keeping its own copy.
+    """
+    try:
+        with tifffile.TiffFile(tifPath) as tf:
+            shape = tf.series[0].shape
+    except Exception:
+        return None
+    if len(shape) == 2:
+        return 1
+    if len(shape) != 3:
+        return None
+    h, w, t = shape
+    if h < w and h < t:   # (T, H, W) — smallest axis at front
+        return h
+    return t              # already (H, W, T)
+
+
+def _partitionShortWells(rows, nFrames, logFn):
+    """Split rows into (kept, short) on frame count, cheaply, before extraction.
+
+    One nFrames per cache: wells with FEWER frames cannot be embedded and wells with
+    more are truncated by the dataset. Without this pre-filter the dataset raises on the
+    first short stack and the whole sweep dies mid-run, so the GUI needs it as much as
+    the CLI does.
+    """
+    kept, short = [], []
+    for r in rows:
+        fc = _frameCountFromHeader(r['processed'])
+        if fc is not None and fc >= nFrames:
+            kept.append(r)
+        else:
+            d = dict(r)
+            d['reason'] = 'fewer_frames' if fc is not None else 'unreadable'
+            d['frames'] = '' if fc is None else fc
+            short.append(d)
+    if short:
+        from collections import Counter
+        byPlate = Counter(r.get('plate', '') for r in short)
+        logFn(f'  SKIPPING {len(short)} wells with < {nFrames} frames (or unreadable):')
+        for pl, n in sorted(byPlate.items()):
+            logFn(f'    {n} wells — plate {pl}')
+    return kept, short
+
+
+def _writeExcludedWells(embedDir, excluded, nFrames, logFn):
+    """Record every well left out of the cache, and why, beside the cache itself.
+
+    The whole point: a short cache must explain itself. Both exclusion causes land in one
+    file — `no_processed_tif` (phase 1 never produced a stack for that well) and
+    `fewer_frames` / `unreadable` (the stack exists but cannot be embedded at this
+    nFrames). Without this the only trace was a line in a log pane nobody kept.
+    """
+    if not excluded:
+        return None
+    os.makedirs(embedDir, exist_ok=True)
+    path = os.path.join(embedDir, 'excluded_short_wells.csv')
+    with open(path, 'w', newline='') as f:
+        w = csv_mod.writer(f)
+        w.writerow(['reason', 'plate', 'well', 'mag', 'frames', 'needed', 'processed'])
+        for r in excluded:
+            w.writerow([r.get('reason', ''), r.get('plate', ''), r.get('well', ''),
+                        r.get('mag', ''), r.get('frames', ''), nFrames,
+                        r.get('processed', '')])
+    logFn(f'  {len(excluded)} excluded well(s) recorded: {path}')
+    return path
 
 
 def _peekFrameCount(tifPath):
@@ -936,16 +1028,34 @@ class ExtractWorker(QObject):
 
         self.log.emit('Phase 2: DINOv2 embedding extraction')
         self.log.emit(f'  scanning {outputRoot} for plate index files…')
-        rows = _collectProcessedRows(outputRoot, self.log.emit)
+        dropped = []
+        rows = _collectProcessedRows(outputRoot, self.log.emit, droppedOut=dropped)
         if not rows:
             self.error.emit('No processed.tif files found — run phase 1 first.')
             self.finished.emit('')
             return
 
-        # Use the first stack's page count as the canonical nFrames.
-        # The dataset will raise loudly on any well that has fewer frames.
         nFrames = _peekFrameCount(rows[0]['processed'])
         self.log.emit(f'  nFrames inferred from first stack: {nFrames}')
+
+        # Drop short wells BEFORE the GPU sweep. Previously the dataset raised on the
+        # first stack with too few frames, killing an otherwise-good multi-plate run
+        # part-way through; and wells missing a stack entirely were discarded with no
+        # record, which is how a plate silently produced an 82-of-96-well cache.
+        rows, shortRows = _partitionShortWells(rows, nFrames, self.log.emit)
+        excluded = dropped + shortRows
+        if excluded:
+            self.log.emit(
+                f'  WARNING: {len(excluded)} of {len(rows) + len(excluded)} wells are '
+                f'NOT in this cache. See excluded_short_wells.csv for which and why.'
+            )
+            _writeExcludedWells(os.path.join(outputRoot, 'embeddings'),
+                                excluded, nFrames, self.log.emit)
+        if not rows:
+            self.error.emit(f'No wells left with >= {nFrames} frames — nothing to extract.')
+            self.finished.emit('')
+            return
+        self.log.emit(f'  embedding {len(rows)} wells at {nFrames} frames')
 
         modelName     = s.get('dinov2Model', 'facebook/dinov2-base')
         imageSize     = s.get('imageSize', 518)
