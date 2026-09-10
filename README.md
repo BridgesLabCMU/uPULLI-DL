@@ -352,6 +352,8 @@ Specify the exact `+cu126` version. Plain `torch==2.13.0` looks "already satisfi
 
 **Extraction says it skipped every well** — the frame count it inferred is larger than the frames your stacks actually have. Run with `--dry-run` to see the counts, then pin the right one with `--n-frames`.
 
+**`BrokenPipeError: [Errno 32] Broken pipe` during "loading facebook/dinov2-base"** — output had nowhere to go, not a problem with the model. It happens when the GUI is launched from a terminal that is then closed, or through a pipe whose reader exited: the progress bar drawn while weights load tries to write to that dead stream. Recent versions turn that bar off, so updating fixes it; otherwise relaunch from a terminal you keep open, or use the desktop shortcut.
+
 **Wells or whole plates are missing from the results** — check `embeddings/excluded_short_wells.csv`; every excluded well is listed there with a reason. A plate acquired with one fewer timepoint than the rest gets skipped wholesale (`fewer_frames`) to keep frames aligned. If instead a *subset* of a plate is missing with `no_processed_tif`, phase 1 failed on those wells — look for `status=error` rows in that plate's `processedImages/index.csv` and re-run phase 1 for the plate, which resumes and only redoes the missing wells.
 
 **The first run stalls for a long time with no output** — it's downloading model weights from HuggingFace (~350 MB for `dinov2-base`, ~4 GB for `dinov2-giant`). This happens once; afterwards they're cached. It needs internet access the first time.

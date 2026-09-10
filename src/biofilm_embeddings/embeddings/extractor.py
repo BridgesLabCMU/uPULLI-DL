@@ -131,8 +131,33 @@ def loadModel(modelName, device):
     reads like a bug in this tool. Translate it into something actionable instead.
     """
     from transformers import Dinov2Model
+
+    # Silence transformers' own "Loading weights" tqdm bar before it can write anything.
+    # tqdm's status_printer() calls sys.stderr.flush() on construction, so when stderr is
+    # a pipe with no reader — a GUI started from a terminal that has since closed, or
+    # through a pipe whose consumer exited — model loading dies with
+    # `BrokenPipeError: [Errno 32] Broken pipe` from inside the bar, having nothing to do
+    # with the weights. This layer reports progress through progressFn/Qt signals, so the
+    # bar was never useful here; not drawing it removes the failure mode entirely.
+    try:
+        from transformers.utils import logging as _hfLogging
+        _hfLogging.disable_progress_bar()
+    except Exception:
+        pass  # older/newer transformers without this helper: fall through to the guard below
+
     try:
         model = Dinov2Model.from_pretrained(modelName)
+    except BrokenPipeError as e:
+        # Explicitly BEFORE the OSError branch: BrokenPipeError IS an OSError, and
+        # reporting it as a download problem sends people to check their internet when
+        # the weights loaded fine and the real issue is where output was going.
+        raise RuntimeError(
+            f'Model loading wrote to a closed output stream ({e}).\n'
+            f'The weights themselves are fine — something printing progress could not '
+            f'reach stderr. This happens when the GUI is launched from a terminal that '
+            f'is then closed, or through a pipe whose reader exited. Relaunch it from a '
+            f'terminal you keep open (or via the desktop shortcut) and it will proceed.'
+        ) from e
     except OSError as e:
         raise RuntimeError(
             f'Could not load the model "{modelName}" ({type(e).__name__}: {e}).\n'
