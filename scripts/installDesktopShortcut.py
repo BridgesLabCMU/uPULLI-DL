@@ -62,32 +62,43 @@ def _envNameFromBin(guiBin):
 
 
 def findGuiBin():
-    """Find the biofilm-embeddings-gui executable, preferring named conda envs over base."""
-    condaBase = _findCondaBase()
-    if condaBase:
-        envsDir = os.path.join(condaBase, 'envs')
-        if os.path.isdir(envsDir):
-            for envName in sorted(os.listdir(envsDir)):
-                if platform.system() == 'Windows':
-                    candidate = os.path.join(envsDir, envName, 'Scripts', f'{GUI_BIN_NAME}.exe')
-                else:
-                    candidate = os.path.join(envsDir, envName, 'bin', GUI_BIN_NAME)
-                if os.path.isfile(candidate):
-                    return candidate
+    """Find the biofilm-embeddings-gui executable.
 
-    for envVar, subdir in [('CONDA_PREFIX', 'bin'), ('VIRTUAL_ENV', 'bin')]:
+    Order matters: the ACTIVE environment wins. Scanning `envs/` alphabetically
+    first (as this used to do) returns whichever env happens to sort earliest
+    that has the script, ignoring the env the user actually ran this installer
+    from. The sibling biofilm-processing repo hit exactly that: with both
+    `biofilm-embeddings` and `biofilm-processing` envs present, its shortcut was
+    wired to the alphabetically-first env and launched a different (pinned,
+    older) install than the user intended. Check the active env first here.
+    """
+    for envVar in ('CONDA_PREFIX', 'VIRTUAL_ENV'):
         prefix = os.environ.get(envVar)
         if prefix:
             if platform.system() == 'Windows':
                 candidate = os.path.join(prefix, 'Scripts', f'{GUI_BIN_NAME}.exe')
             else:
-                candidate = os.path.join(prefix, subdir, GUI_BIN_NAME)
+                candidate = os.path.join(prefix, 'bin', GUI_BIN_NAME)
             if os.path.isfile(candidate):
                 return candidate
 
     gui = shutil.which(GUI_BIN_NAME)
     if gui:
         return gui
+
+    condaBase = _findCondaBase()
+    if condaBase:
+        envsDir = os.path.join(condaBase, 'envs')
+        if os.path.isdir(envsDir):
+            names = sorted(os.listdir(envsDir))
+            names.sort(key=lambda n: n != 'biofilm-embeddings')
+            for envName in names:
+                if platform.system() == 'Windows':
+                    candidate = os.path.join(envsDir, envName, 'Scripts', f'{GUI_BIN_NAME}.exe')
+                else:
+                    candidate = os.path.join(envsDir, envName, 'bin', GUI_BIN_NAME)
+                if os.path.isfile(candidate):
+                    return candidate
 
     return None
 
@@ -284,14 +295,17 @@ def installWindows(guiBin):
     desktopDir = getDesktopDir()
 
     envName = _envNameFromBin(guiBin) or os.environ.get('CONDA_DEFAULT_ENV')
-    condaPrefix = os.environ.get('CONDA_PREFIX')
+    condaBase = _findCondaBase()
     venv = os.environ.get('VIRTUAL_ENV')
 
-    if condaPrefix and envName:
-        activate = (
-            f'call "{condaPrefix}\\Scripts\\activate.bat"\n'
-            f'call conda activate {envName}\n'
-        )
+    if condaBase and envName:
+        # `activate.bat <env>` activates base AND the env in one call.
+        # CONDA_PREFIX is the ACTIVE env's prefix, never the base, and
+        # activate.bat exists only in <base>\Scripts. Using it here produced
+        # `call "...\envs\<name>\Scripts\activate.bat"`, which fails silently,
+        # leaving the GUI off PATH -- and since the .lnk is created minimized,
+        # that looked like clicking the icon did nothing at all.
+        activate = f'call "{condaBase}\\Scripts\\activate.bat" {envName}\n'
     elif venv:
         activate = f'call "{venv}\\Scripts\\activate.bat"\n'
     else:
@@ -304,6 +318,9 @@ def installWindows(guiBin):
         f.write('@echo off\n')
         f.write(activate)
         f.write(f'{GUI_BIN_NAME}\n')
+        # Keep the window up on failure: the .lnk is created minimized, so
+        # without this any startup error vanishes with the closing console.
+        f.write('if errorlevel 1 pause\n')
     print(f'Created launcher: {batPath}')
 
     lnkPath = os.path.join(desktopDir, f'{APP_NAME}.lnk')
