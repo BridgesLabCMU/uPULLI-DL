@@ -16,15 +16,24 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     # Pinned (==) on purpose, not >=: the processing engine is vendored as a git
-    # submodule at external/biofilm-processing (tag v1.0.1) and installed editable
+    # submodule at external/biofilm-processing (tag v1.1.2) and installed editable
     # from there. Pinning prevents silent version-drift in the render, which would
     # reintroduce batch effects in the DINOv2 embeddings. Bump deliberately:
     # advance the submodule to a new tag, then bump this pin in the same commit.
-    # v1.0.1 differs from the paper-locked v1.0.0 ONLY in licensing (Apache 2.0 +
-    # NOTICE) and package metadata -- `git diff v1.0.0 v1.0.1` touches no file under
-    # src/, so the render is unchanged and embeddings made under either are
-    # directly comparable.
-    "biofilm-processing==1.0.1",
+    # Version history of this pin, and why each bump was safe:
+    #   v1.0.0 -> v1.0.1  licensing + metadata only; `git diff` touches no file
+    #                     under src/.
+    #   v1.0.1 -> v1.1.2  adds an opt-in `saveRegistered` flag (gates ONLY the
+    #                     `_registered_raw.tif` write), an ftruncate in saveStack
+    #                     that releases XFS post-EOF preallocation, and Windows
+    #                     desktop-shortcut fixes. The display-render path --
+    #                     normalizeLocalContrastOutput, the fixed fpMean = 0.5,
+    #                     and the clip -- is untouched, and the ftruncate frees
+    #                     only blocks past EOF, so `_processed.tif` is
+    #                     BIT-IDENTICAL (verified by md5 on a real 372 MiB stack).
+    # Embeddings made under any of these are therefore directly comparable; a
+    # cache does NOT need rebuilding for this bump.
+    "biofilm-processing==1.1.2",
     "numpy",
     "scipy",
     "scikit-image",
