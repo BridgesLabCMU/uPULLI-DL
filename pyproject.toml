@@ -16,7 +16,7 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     # Pinned (==) on purpose, not >=: the processing engine is vendored as a git
-    # submodule at external/biofilm-processing (tag v1.1.3) and installed editable
+    # submodule at external/biofilm-processing (tag v1.1.4) and installed editable
     # from there. Pinning prevents silent version-drift in the render, which would
     # reintroduce batch effects in the DINOv2 embeddings. Bump deliberately:
     # advance the submodule to a new tag, then bump this pin in the same commit.
@@ -26,6 +26,8 @@ dependencies = [
     # Version history of this pin, and why each bump was safe:
     #   v1.0.0 -> v1.0.1  licensing + metadata only; `git diff` touches no file
     #                     under src/.
+    #   v1.1.3 -> v1.1.4  caps PySide6 below 6.10 (Windows Qt DLL compatibility);
+    #                     no change under src/.
     #   v1.1.2 -> v1.1.3  Windows desktop-shortcut launcher only (all-users conda
     #                     installs). `git diff v1.1.2 v1.1.3 -- src/` is EMPTY,
     #                     so the importable engine is byte-identical.
@@ -39,7 +41,7 @@ dependencies = [
     #                     BIT-IDENTICAL (verified by md5 on a real 372 MiB stack).
     # Embeddings made under any of these are therefore directly comparable; a
     # cache does NOT need rebuilding for this bump.
-    "biofilm-processing==1.1.3",
+    "biofilm-processing==1.1.4",
     "numpy",
     "scipy",
     "scikit-image",
@@ -51,7 +53,16 @@ dependencies = [
     "imageio",
     "imageio-ffmpeg",
     "tqdm",
-    "PySide6",
+    # Capped below 6.10: Qt 6.11 imports symbols that only exist in newer
+    # msvcp140.dll, so it fails with "DLL load failed while importing QtCore:
+    # The specified procedure could not be found" on machines whose VC++
+    # redistributable is older. Observed: works on System32 msvcp140 14.50,
+    # fails on 14.40. That redistributable does NOT arrive via Windows Update
+    # -- it is installed incidentally by other software -- so its version is
+    # effectively arbitrary per machine and cannot be assumed. 6.8/6.9 do not
+    # need it. Installing the current redistributable also fixes 6.11, but a
+    # user should not have to audit DLL versions to install this package.
+    "PySide6>=6.6,<6.10",
     # torch>=2.7 — first stable release with Blackwell sm_120 SASS kernels in
     # the default PyPI wheels. Lower versions silently fail on RTX 50-series
     # with "no kernel image is available for execution on the device" at the
