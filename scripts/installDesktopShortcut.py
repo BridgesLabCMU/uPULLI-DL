@@ -26,7 +26,22 @@ GUI_BIN_NAME = 'biofilm-embeddings-gui'
 
 
 def _findCondaBase():
-    """Try multiple methods to find the conda base directory."""
+    """Locate the conda BASE install (the one holding Scripts/activate.bat).
+
+    Several routes, because no single one is reliable:
+
+    * `conda info --base` fails in PowerShell, where `conda` is a shell FUNCTION
+      rather than an executable subprocess can spawn.
+    * CONDA_EXE is set by every conda shell hook and points at the base's own
+      conda executable, so it survives that -- the most dependable signal.
+    * Deriving from CONDA_PREFIX only works when envs live inside the base. With
+      an ALL-USERS install the base is under C:\\ProgramData while envs land in
+      %USERPROFILE%\\.conda\\envs (ProgramData is not user-writable), so stripping
+      two components yields "<user>\\.conda" -- an env store, not an install.
+    * The directory scan therefore has to include the system-wide locations.
+
+    Returns None if nothing is found; callers must not assume success.
+    """
     try:
         return subprocess.check_output(
             ['conda', 'info', '--base'], text=True, stderr=subprocess.DEVNULL
@@ -34,21 +49,45 @@ def _findCondaBase():
     except Exception:
         pass
 
+    condaExe = os.environ.get('CONDA_EXE', '')
+    if condaExe:
+        candidate = os.path.dirname(os.path.dirname(condaExe))
+        if _looksLikeCondaBase(candidate):
+            return candidate
+
     prefix = os.environ.get('CONDA_PREFIX', '')
     if prefix:
+        if _looksLikeCondaBase(prefix):          # base env itself is active
+            return prefix
         candidate = os.path.dirname(os.path.dirname(prefix))
-        condaSh = os.path.join(candidate, 'etc', 'profile.d', 'conda.sh')
-        if os.path.isfile(condaSh):
+        if _looksLikeCondaBase(candidate):
             return candidate
 
-    home = str(Path.home())
-    for name in ['miniforge3', 'mambaforge', 'miniconda3', 'anaconda3',
-                 'opt/miniconda3', 'opt/anaconda3']:
-        candidate = os.path.join(home, name)
-        if os.path.isfile(os.path.join(candidate, 'etc', 'profile.d', 'conda.sh')):
-            return candidate
+    roots = [str(Path.home()), os.environ.get('LOCALAPPDATA', ''),
+             os.environ.get('PROGRAMDATA', ''), 'C:\\ProgramData', 'C:\\']
+    names = ['miniforge3', 'mambaforge', 'miniconda3', 'anaconda3', 'Miniconda3',
+             'Anaconda3', 'opt/miniconda3', 'opt/anaconda3']
+    for root in [r for r in roots if r]:
+        for name in names:
+            candidate = os.path.join(root, name)
+            if _looksLikeCondaBase(candidate):
+                return candidate
 
     return None
+
+
+def _looksLikeCondaBase(path):
+    """True if `path` is a conda INSTALL rather than merely an env directory.
+
+    Checks for the activation entry point we need on this platform; an env store
+    such as %USERPROFILE%\\.conda has neither.
+    """
+    if not path or not os.path.isdir(path):
+        return False
+    if platform.system() == 'Windows':
+        return os.path.isfile(os.path.join(path, 'Scripts', 'activate.bat')) or \
+               os.path.isfile(os.path.join(path, 'condabin', 'conda.bat'))
+    return os.path.isfile(os.path.join(path, 'etc', 'profile.d', 'conda.sh'))
 
 
 def _envNameFromBin(guiBin):
@@ -298,29 +337,37 @@ def installWindows(guiBin):
     condaBase = _findCondaBase()
     venv = os.environ.get('VIRTUAL_ENV')
 
+    # Launch the executable by ABSOLUTE PATH and set PATH ourselves, rather than
+    # relying on `conda activate`. guiBin is already resolved, so activation was
+    # never load-bearing -- and it is the fragile part: with an all-users conda
+    # install `_findCondaBase()` can legitimately return None, and the launcher
+    # was then written with NO activation line, failing with
+    # "'GUI' is not recognized as an internal or external command".
+    # Scripts + Library\\bin + the env root are what activation would prepend;
+    # including them keeps conda-provided DLLs (Qt, MKL) reachable.
+    envDir = os.path.dirname(os.path.dirname(guiBin))     # ...\\envs\\<name>
+    lines = [
+        '@echo off\n',
+        f'set "ENVDIR={envDir}"\n',
+        'set "PATH=%ENVDIR%;%ENVDIR%\\Scripts;%ENVDIR%\\Library\\bin;%PATH%"\n',
+    ]
+    # Best-effort activation on top, when a base was actually located: it sets
+    # the conda-managed variables some packages expect. The launch below does
+    # not depend on it succeeding.
     if condaBase and envName:
-        # `activate.bat <env>` activates base AND the env in one call.
-        # CONDA_PREFIX is the ACTIVE env's prefix, never the base, and
-        # activate.bat exists only in <base>\Scripts. Using it here produced
-        # `call "...\envs\<name>\Scripts\activate.bat"`, which fails silently,
-        # leaving the GUI off PATH -- and since the .lnk is created minimized,
-        # that looked like clicking the icon did nothing at all.
-        activate = f'call "{condaBase}\\Scripts\\activate.bat" {envName}\n'
+        lines.append(f'call "{condaBase}\\Scripts\\activate.bat" {envName} 2>nul\n')
     elif venv:
-        activate = f'call "{venv}\\Scripts\\activate.bat"\n'
-    else:
-        activate = ''
+        lines.append(f'call "{venv}\\Scripts\\activate.bat" 2>nul\n')
+    lines.append(f'"{guiBin}"\n')
+    # Keep the window up on failure: the .lnk is created minimized, so without
+    # this any startup error vanishes with the closing console.
+    lines.append('if errorlevel 1 pause\n')
 
     appDataDir = os.path.join(os.environ.get('APPDATA', ''), APP_NAME)
     os.makedirs(appDataDir, exist_ok=True)
-    batPath = os.path.join(appDataDir, f'{APP_NAME.lower()}.bat')
+    batPath = os.path.join(appDataDir, f'{APP_NAME}.bat')
     with open(batPath, 'w') as f:
-        f.write('@echo off\n')
-        f.write(activate)
-        f.write(f'{GUI_BIN_NAME}\n')
-        # Keep the window up on failure: the .lnk is created minimized, so
-        # without this any startup error vanishes with the closing console.
-        f.write('if errorlevel 1 pause\n')
+        f.writelines(lines)
     print(f'Created launcher: {batPath}')
 
     lnkPath = os.path.join(desktopDir, f'{APP_NAME}.lnk')
