@@ -2,15 +2,12 @@
 #
 # TEMPLATE — DINOv2 embeddings for one already-processed dataset (single magnification).
 #
-# Copy this per dataset and fill in the DATA block below. The point of keeping one
-# script per dataset is that the script IS the reproducible record: it pins the
-# frame count and any non-default model settings, so re-running it months later
-# reproduces the same cache rather than whatever the defaults happen to be.
+# Copy this per dataset and fill in the DATA block below; the script is the
+# reproducible record of how that cache was made.
 #
-# EMBED-ONLY: assumes image processing has already run. This walks every
-# <plate>/processedImages/index.csv under the data root, embeds each well's
-# _processed.tif, and writes <root>/embeddings/cls_cache.pt. Run it on a GPU
-# machine; it detaches with nohup so it survives logout.
+# EMBED-ONLY: walks every <plate>/processedImages/index.csv under the data root,
+# embeds each well's _processed.tif, and writes <root>/embeddings/cls_cache.pt.
+# Run on a GPU machine; detaches with nohup so it survives logout.
 #
 # ---------------------------------------------------------------------------
 # DATA: <describe the dataset here — this block is the part worth keeping>
@@ -34,15 +31,11 @@
 #
 set -euo pipefail
 
-# --- Frames per stack. Pin this explicitly. -------------------------------
-# Inferring from the first stack is fragile: if the first well happens to be a
-# short one, every other well gets truncated to match it. Wells with FEWER than
-# this are skipped and listed in <root>/embeddings/excluded_short_wells.csv.
+# Frames per stack. Pin explicitly: inferring from the first stack truncates every
+# well to match it if that one is short. Wells with fewer are skipped and listed in
+# <root>/embeddings/excluded_short_wells.csv.
 N_FRAMES=25
 
-# --- Data root comes from the caller, not from this file ------------------
-# Do not hardcode mount points here: they differ per machine and leak local
-# storage layout into a public repository.
 if [[ $# -lt 1 ]]; then
     echo "usage: $(basename "$0") <data-root> [extra flags for biofilm-embeddings-run]" >&2
     echo "  <data-root> is the directory containing <plate>/processedImages/index.csv" >&2
@@ -61,10 +54,8 @@ if [[ ! -w "$ROOT" ]]; then
 fi
 echo "Data root: $ROOT"
 
-# Prefer the installed console script; fall back to module form for a source
-# checkout. REPO_ROOT is resolved from this script's own location (examples/ is
-# two levels below the repo root) rather than from the working directory, so the
-# fallback works no matter where you invoke this from.
+# Prefer the installed console script; fall back to module form for a source checkout.
+# REPO_ROOT comes from this script's location so the fallback works from anywhere.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUN_CMD="biofilm-embeddings-run"
 command -v biofilm-embeddings-run >/dev/null 2>&1 || \

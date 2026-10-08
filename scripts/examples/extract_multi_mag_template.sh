@@ -2,15 +2,14 @@
 #
 # TEMPLATE — DINOv2 embeddings for a dataset imaged at MORE THAN ONE magnification.
 #
-# WHY THIS IS A SEPARATE TEMPLATE: embeddings of different objectives describe
-# different physical scales and must NOT share a cache. A single run over a mixed
-# tree would silently blend them. Instead each magnification is extracted in its
-# own pass with --mag, into its own cache directory via --cache-dir:
+# Different objectives are different physical scales and must NOT share a cache —
+# a single run over a mixed tree would silently blend them. Each magnification gets
+# its own pass (--mag) and its own cache dir (--cache-dir):
 #
 #   <root>/10X/embeddings/cls_cache.pt    (--mag _04)
 #   <root>/4X/embeddings/cls_cache.pt     (--mag _03)
 #
-# Downstream, treat those as two separate embedding spaces. Do not concatenate them.
+# Treat those as separate embedding spaces downstream. Do not concatenate them.
 #
 # ---------------------------------------------------------------------------
 # DATA: <describe the dataset here>
@@ -34,8 +33,8 @@ set -euo pipefail
 N_FRAMES=24
 
 # Magnification suffix -> cache subdirectory label. Suffixes come from the `mag`
-# column of each plate's index.csv; confirm yours with --dry-run before running,
-# because the suffix -> objective mapping is per-plate and microscope-dependent.
+# column of index.csv; the suffix -> objective mapping is per-plate, so confirm
+# yours with --dry-run first.
 MAGS=(_04 _03)
 LABELS=(10X 4X)
 
@@ -55,8 +54,7 @@ if [[ ! -w "$ROOT" ]]; then
 fi
 echo "Data root: $ROOT"
 
-# REPO_ROOT is resolved from this script's location, not the working directory,
-# so the module-form fallback works from anywhere.
+# REPO_ROOT comes from this script's location so the fallback works from anywhere.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUN_CMD="biofilm-embeddings-run"
 command -v biofilm-embeddings-run >/dev/null 2>&1 || \
@@ -65,10 +63,8 @@ command -v biofilm-embeddings-run >/dev/null 2>&1 || \
 TS=$(date +%Y%m%d_%H%M%S)
 LOG="$(pwd)/extract_$(basename "$ROOT")_multimag_${TS}.log"
 
-# Sequential per-mag passes inside one detached nohup. The bash -c body receives
-# root, runner, frame count, then the user's passthrough args as positionals,
-# which avoids re-quoting problems. $RUN is intentionally unquoted so the
-# module-form fallback word-splits correctly.
+# Sequential per-mag passes in one detached nohup. Args are passed as positionals
+# to avoid re-quoting; $RUN is unquoted so the module-form fallback word-splits.
 nohup bash -c '
     ROOT="$1"; shift
     RUN="$1";  shift
