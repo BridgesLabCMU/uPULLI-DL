@@ -17,12 +17,14 @@ The installed Python package and its commands are named `biofilm-embeddings` —
 ## Table of contents
 
 - [How it works](#how-it-works)
+- [System requirements](#system-requirements)
 - [Quick start](#quick-start)
   - [1. Install Miniconda (one-time)](#1-install-miniconda-one-time)
   - [2. Download biofilm-embeddings](#2-download-biofilm-embeddings)
   - [3. Install it](#3-install-it)
   - [4. Check your GPU](#4-check-your-gpu)
   - [5. Make a desktop shortcut](#5-make-a-desktop-shortcut-optional)
+- [Demo](#demo)
 - [Using the GUI](#using-the-gui)
 - [What gets produced](#what-gets-produced)
 - [Keeping embeddings comparable](#keeping-embeddings-comparable)
@@ -46,7 +48,51 @@ They're separate so you can re-extract with a different model or image size **wi
 
 If your images have *already* been processed by [biofilm-processing](https://github.com/BridgesLabCMU/uPULLI-I), you can skip phase 1 entirely and just run phase 2 over the existing output — see [Running without the GUI](#running-without-the-gui).
 
-> **A note on the processing engine.** biofilm-embeddings does not contain its own copy of the image-processing code. It uses biofilm-processing itself, frozen at a specific version (v1.0.0, the paper-locked release), included automatically as part of the download. This matters scientifically: a vision transformer is *very* sensitive to how images are rendered, so if the processing changed underneath you, embeddings from different batches would stop being comparable in ways that look like biology but aren't.
+> **A note on the processing engine.** biofilm-embeddings does not contain its own copy of the image-processing code. It uses biofilm-processing itself, frozen at a specific version (currently v1.1.5; image rendering is unchanged from v1.0.0, the release used for the paper), included automatically as part of the download. This matters scientifically: a vision transformer is *very* sensitive to how images are rendered, so if the processing changed underneath you, embeddings from different batches would stop being comparable in ways that look like biology but aren't.
+
+---
+
+## System requirements
+
+**Operating system.** Linux, Windows or macOS. Tested on:
+
+| OS | Python | PyTorch | GPU | How it was tested |
+|---|---|---|---|---|
+| Ubuntu 24.04.3 LTS | 3.11.15 | 2.13.0+cu126 (CUDA 12.6) | NVIDIA Quadro P6000, 24 GB, driver 580.95.05 | Full datasets; demo below |
+| Ubuntu (GitHub Actions `ubuntu-latest`) | 3.10, 3.11, 3.12 | current CPU-only build | none | Automated install + test suite on every change |
+
+The installer (`scripts/setup.py`) and desktop shortcut support Windows and macOS, and the
+code is expected to run there, but only Ubuntu is covered by the tests above. GPU
+acceleration needs an NVIDIA GPU, so on macOS phase 2 runs on the CPU.
+
+**Python.** 3.10, 3.11 or 3.12. Python 3.13 is not supported yet, because the processing
+engine requires `numpy<2.1`.
+
+**Software dependencies.** Installed by `scripts/setup.py` (version ranges in
+[`pyproject.toml`](pyproject.toml)): PyTorch ≥ 2.7, Hugging Face `transformers`, PySide6
+< 6.10, and the processing engine
+[biofilm-processing (µPULLI-I)](https://github.com/BridgesLabCMU/uPULLI-I), which is
+installed from the `external/biofilm-processing` submodule at a pinned version together
+with its own dependencies (numpy, scipy, scikit-image, OpenCV, mahotas). Tested with
+transformers 5.14.1. The pretrained DINOv2 weights (`facebook/dinov2-base`, about 350 MB)
+download automatically from Hugging Face on first use, so the first run needs internet
+access.
+
+**Hardware.**
+
+- **GPU (recommended):** an NVIDIA GPU with CUDA. With the default settings (518 px images,
+  4 wells per batch) a 16-frame batch uses about 5 GB of GPU memory; lower *Wells per batch*
+  or the image size for smaller cards. Cards older than Turing (compute capability below
+  7.5, e.g. Pascal) need the CUDA 12.6 build of PyTorch; see
+  [4. Check your GPU](#4-check-your-gpu).
+- **CPU only:** works, but slower: about 1 frame per second on an 8-core CPU, versus
+  about 15 frames per second on the P6000. Fine for the demo; for real datasets
+  (thousands of wells × 31 frames) use a GPU.
+- **RAM:** 8 GB is enough for the demo (peak 5 GB on CPU, 1.5 GB with a GPU). Phase 1
+  needs about 3 GB per parallel worker for full-size 31-frame images.
+- **Disk:** phase 1 writes about 1 GB per full-size 31-frame well (0.5 GB with
+  `--no-save-registered`); see
+  [What gets produced](#what-gets-produced).
 
 ---
 
@@ -152,6 +198,80 @@ On macOS and Windows, JPG isn't a valid icon format, so convert the icon first a
 
 - macOS: `sips -s format icns assets/dora5.jpg --out assets/dora5.icns`
 - Windows: `magick convert assets/dora5.jpg -define icon:auto-resize=256,128,64,48,32,16 assets/dora5.ico`
+
+---
+
+## Demo
+
+The processing engine ships a small real dataset, and the setup step downloads it with
+the engine into `external/biofilm-processing/demo/`. It has four wells (wild type and three
+transposon mutants with different biofilm phenotypes) from one *V. cholerae* plate,
+cropped to 512 × 512 pixels and cut to 16 frames covering 0–30 h. See
+`external/biofilm-processing/demo/README.md` for details.
+
+### Run it
+
+From inside the `uPULLI-DL` folder, with the environment activated, run phase 1 (image
+processing) and then phase 2 (embedding):
+
+```bash
+# Phase 1: raw TIFFs -> processed stacks (same parameters as the paper's V. cholerae data)
+biofilm-processing-run --plates external/biofilm-processing/demo/raw/demo_plate \
+    --output-dir demo_output --mag _02 --workers 4 \
+    --block-diam 101 --fixed-thresh 0.025 --shift-thresh 250 --downsample 1 \
+    --no-overlays --no-colony-tracking --no-colony-feats
+
+# Phase 2: processed stacks -> DINOv2 embeddings
+biofilm-embeddings-run demo_output --dry-run     # optional: lists 4 wells, 16 frames
+biofilm-embeddings-run demo_output
+```
+
+On Windows, put each command on one line (or replace `\` with `^`). In the GUI, the
+equivalent is: Setup tab → Browse to `external/biofilm-processing/demo/raw`, tick
+`demo_plate`, set an output folder; Parameters tab → enter the values above; Run tab →
+**Start**, then **Extract DINOv2 embeddings**.
+
+### Expected run time
+
+On a desktop computer with an 8-core CPU:
+
+| Step | With an NVIDIA GPU | CPU only |
+|---|---|---|
+| Phase 1 | about 10 s | about 10 s |
+| Phase 2 | 15–40 s (Quadro P6000) | about 60 s |
+
+Phase 2 times include loading the model. Add 1–2 minutes the first time to download the
+DINOv2 weights. Peak memory is under 1.5 GB of RAM with a GPU and about 5 GB on CPU only.
+
+### Expected output
+
+```
+demo_output/
+├── demo_plate/processedImages/   4 × _processed.tif (the stacks that get embedded), index.csv, …
+└── embeddings/
+    ├── cls_cache.pt              the embeddings
+    └── index.csv                 which well is which row
+```
+
+(No `excluded_short_wells.csv` appears, because no wells were left out.)
+
+Phase 2 ends by printing `cls shape: (4, 16, 768)` and `patches shape: (4, 16, 9, 768)`:
+4 wells × 16 frames × 768 numbers per frame, plus a 3 × 3 grid of patch embeddings. To
+check in Python:
+
+```python
+from biofilm_embeddings.embeddings.extractor import loadCache
+cache = loadCache('demo_output/embeddings/cls_cache.pt')
+print(cache['wells'], cache['cls'].shape)   # 4 well IDs, torch.Size([4, 16, 768])
+```
+
+### Running on your own data
+
+Process your plates with phase 1 (GUI **Start**, or `biofilm-processing-run`), then run
+phase 2 on the output folder. Use `--dry-run` first to check the well count, frame count
+and magnification, and pin `--n-frames` for anything you plan to compare. See
+[Running without the GUI](#running-without-the-gui) and
+[Keeping embeddings comparable](#keeping-embeddings-comparable).
 
 ---
 

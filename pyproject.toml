@@ -16,7 +16,7 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     # Pinned (==) on purpose, not >=: the processing engine is vendored as a git
-    # submodule at external/biofilm-processing (tag v1.1.5) and installed editable
+    # submodule at external/biofilm-processing (v1.1.5 + demo commit fee6b4f) and installed editable
     # from there. Pinning prevents silent version-drift in the render, which would
     # reintroduce batch effects in the DINOv2 embeddings. Bump deliberately:
     # advance the submodule to a new tag, then bump this pin in the same commit.
@@ -24,6 +24,9 @@ dependencies = [
     # runs `git submodule update --remote` gets the branch tip, and a tip newer
     # than the pin makes `pip install -e .` fail to resolve rather than degrade.
     # Version history of this pin, and why each bump was safe:
+    #   v1.1.5 -> fee6b4f  submodule only; pin unchanged (still 1.1.5). Adds
+    #                     demo/ (4-well dataset for the README demo) and README
+    #                     sections; no file under src/ changes.
     #   v1.0.0 -> v1.0.1  licensing + metadata only; `git diff` touches no file
     #                     under src/.
     #   v1.1.4 -> v1.1.5  engine features, render unchanged: per-well registration
