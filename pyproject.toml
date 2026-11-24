@@ -63,6 +63,7 @@ dependencies = [
     "pandas",
     "matplotlib",
     "tifffile",
+    "imagecodecs>=2024.1",  # deflate + predictor: uint16 _processed.tif
     "imageio",
     "imageio-ffmpeg",
     "tqdm",
