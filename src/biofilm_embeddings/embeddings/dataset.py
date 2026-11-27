@@ -39,6 +39,24 @@ def _toHWT(stack):
     return stack
 
 
+def _readProcessed(path):
+    """Read a `_processed.tif` as float32 in [0, 1].
+
+    biofilm-processing can store it as float32 (default) or as uint16 =
+    round(v * 65535) (`--processed-dtype uint16`, deflate-compressed), marked by
+    `processedScale` in the TIFF's shaped-JSON ImageDescription. Marked uint16 is
+    divided by that scale; unmarked uint16 (e.g. a raw camera image) is returned
+    unchanged so the range check in __getitem__ still refuses it.
+    """
+    with tifffile.TiffFile(path) as tf:
+        stack = tf.asarray()
+        md = tf.shaped_metadata[0] if tf.shaped_metadata else {}
+    scale = md.get('processedScale') if isinstance(md, dict) else None
+    if stack.dtype == np.uint16 and scale:
+        return stack.astype(np.float32) / np.float32(scale)
+    return stack
+
+
 class ProcessedTifDataset(Dataset):
     """Each item: dict with 'frames' (T, 3, S, S) float32 ready for DINOv2.
 
@@ -60,7 +78,7 @@ class ProcessedTifDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.rows[idx]
-        stack = tifffile.imread(row['processed'])
+        stack = _readProcessed(row['processed'])
         stack = _toHWT(stack)
         h, w, t = stack.shape
         if t < self.nFrames:
